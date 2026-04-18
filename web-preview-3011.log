@@ -1,0 +1,10 @@
+
+> carloi-web@1.0.0 dev
+> next dev --hostname 0.0.0.0 --port 3011
+
+   ▲ Next.js 15.5.15
+   - Local:        http://localhost:3011
+   - Network:      http://0.0.0.0:3011
+
+ ✓ Starting...
+ ✓ Ready in 5.2s
