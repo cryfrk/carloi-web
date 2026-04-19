@@ -8,3 +8,21 @@
 
  ✓ Starting...
  ✓ Ready in 5.2s
+ ○ Compiling / ...
+ ✓ Compiled / in 10.6s (605 modules)
+ GET / 200 in 11535ms
+ GET / 200 in 188ms
+ ○ Compiling /middleware ...
+ ✓ Compiled /middleware in 1661ms (114 modules)
+ ○ Compiling /register ...
+ ✓ Compiled /register in 2s (637 modules)
+ GET /register 200 in 2466ms
+ GET /register 200 in 101ms
+ ○ Compiling /login ...
+ ✓ Compiled /login in 958ms (644 modules)
+ GET /login 200 in 1220ms
+ GET /register 200 in 90ms
+ ○ Compiling /api/auth/register ...
+ ✓ Compiled /api/auth/register in 988ms (671 modules)
+ POST /api/auth/register 500 in 1280ms
+ GET /login 200 in 146ms

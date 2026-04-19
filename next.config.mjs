@@ -1,10 +1,10 @@
-import path from 'node:path';
-
 /** @type {import('next').NextConfig} */
+const isDockerBuild = process.env.DOCKER_BUILD === 'true';
+
 const nextConfig = {
   typedRoutes: false,
-  output: 'standalone',
-  outputFileTracingRoot: path.join(process.cwd(), '..'),
+  outputFileTracingRoot: process.cwd(),
+  ...(isDockerBuild ? { output: 'standalone' } : {}),
   images: {
     remotePatterns: [
       {
