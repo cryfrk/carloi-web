@@ -10,8 +10,9 @@ import { useSession } from '@/providers/session-provider';
 
 export default function VerifyEmailPage() {
   const router = useRouter();
-  const { resendVerificationCode, verifyEmailToken } = useSession();
+  const { resendVerificationCode, verifyEmail, verifyEmailToken } = useSession();
   const [email, setEmail] = useState('');
+  const [code, setCode] = useState('');
   const [token, setToken] = useState('');
   const [intent, setIntent] = useState('');
   const [message, setMessage] = useState('');
@@ -21,10 +22,12 @@ export default function VerifyEmailPage() {
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const defaultEmail = params.get('email') || '';
+    const defaultCode = params.get('code') || '';
     const defaultToken = params.get('token') || '';
     const defaultIntent = params.get('intent') || '';
     const initialMessage = params.get('message') || '';
     setEmail(defaultEmail);
+    setCode(defaultCode);
     setToken(defaultToken);
     setIntent(defaultIntent);
     if (initialMessage) {
@@ -33,7 +36,7 @@ export default function VerifyEmailPage() {
   }, []);
 
   useEffect(() => {
-    if (!token) {
+    if (!token && !(email && code)) {
       return;
     }
 
@@ -42,7 +45,9 @@ export default function VerifyEmailPage() {
     setError('');
     setMessage('E-posta dogrulaniyor...');
 
-    void verifyEmailToken(token)
+    const verificationPromise = token ? verifyEmailToken(token) : verifyEmail(email, code);
+
+    void verificationPromise
       .then(() => {
         if (!cancelled) {
           router.push(intent === 'commercial' ? '/settings/commercial' : '/feed');
@@ -63,7 +68,7 @@ export default function VerifyEmailPage() {
     return () => {
       cancelled = true;
     };
-  }, [intent, router, token, verifyEmailToken]);
+  }, [code, email, intent, router, token, verifyEmail, verifyEmailToken]);
 
   async function handleResend() {
     setError('');
@@ -72,12 +77,14 @@ export default function VerifyEmailPage() {
       setError('Lutfen e-posta adresini gir.');
       return;
     }
+
     try {
       const result = await resendVerificationCode(email);
       if (result.emailDisabled || result.emailNotConfigured) {
         setMessage('E-posta servisi henüz aktif değil. Lütfen daha sonra tekrar deneyin.');
         return;
       }
+
       setMessage(result.message || 'Dogrulama baglantisi yeniden gonderildi.');
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Dogrulama baglantisi yeniden gonderilemedi.');
@@ -98,14 +105,13 @@ export default function VerifyEmailPage() {
       <div className="stack">
         <input className="input" placeholder="E-posta" value={email} onChange={(e) => setEmail(e.target.value)} />
         <div style={{ color: 'var(--muted)' }}>
-          Mailine gelen baglantiyi actiginda hesabin otomatik olarak dogrulanir. Baglanti sana ulasmadiysa ayni e-posta adresine yeniden gonderebilirsin.
+          Mailine gelen baglantiyi actiginda hesabin otomatik olarak dogrulanir. Baglanti sana ulasmadiysa ayni e-posta
+          adresine yeniden gonderebilirsin.
         </div>
         {message ? <div style={{ color: 'var(--brand-strong)' }}>{message}</div> : null}
         {error ? <div style={{ color: 'var(--danger)' }}>{error}</div> : null}
         {intent === 'commercial' ? (
-          <div className="muted">
-            E-posta dogrulamasindan sonra ticari onboarding ekranina yonlendirileceksin.
-          </div>
+          <div className="muted">E-posta dogrulamasindan sonra ticari onboarding ekranina yonlendirileceksin.</div>
         ) : null}
         <button className="button button-secondary" onClick={handleResend} disabled={loading}>
           {loading && token ? 'Baglanti dogrulaniyor...' : 'Dogrulama baglantisini tekrar gonder'}
