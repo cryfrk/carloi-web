@@ -74,6 +74,10 @@ export default function VerifyEmailPage() {
     }
     try {
       const result = await resendVerificationCode(email);
+      if (result.emailDisabled || result.emailNotConfigured) {
+        setMessage('E-posta servisi henüz aktif değil. Lütfen daha sonra tekrar deneyin.');
+        return;
+      }
       setMessage(result.message || 'Dogrulama baglantisi yeniden gonderildi.');
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Dogrulama baglantisi yeniden gonderilemedi.');

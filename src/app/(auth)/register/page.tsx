@@ -114,6 +114,12 @@ export default function RegisterPage() {
       if (result.deliveryFailed) {
         params.set('deliveryFailed', '1');
       }
+      if (result.emailDisabled) {
+        params.set('emailDisabled', '1');
+      }
+      if (result.emailNotConfigured) {
+        params.set('emailNotConfigured', '1');
+      }
       if (accountType === 'commercial') {
         params.set('intent', 'commercial');
       }

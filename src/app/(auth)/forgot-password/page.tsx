@@ -32,6 +32,10 @@ export default function ForgotPasswordPage() {
             setLoading(true);
             try {
               const result = await forgotPassword(email);
+              if (result.emailDisabled || result.emailNotConfigured) {
+                setMessage('E-posta servisi henüz aktif değil. Lütfen daha sonra tekrar deneyin.');
+                return;
+              }
               setMessage(result.message || 'Baglanti gonderildi.');
             } catch (cause) {
               setError(cause instanceof Error ? cause.message : 'Baglanti gonderilemedi.');

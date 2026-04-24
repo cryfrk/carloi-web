@@ -554,6 +554,8 @@ export interface BackendResponse<T = unknown> {
   expiresAt?: string;
   maskedDestination?: string;
   deliveryFailed?: boolean;
+  emailDisabled?: boolean;
+  emailNotConfigured?: boolean;
   provider?: string;
   relatedPostIds?: string[];
   url?: string;
