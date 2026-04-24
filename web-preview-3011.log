@@ -26,3 +26,15 @@
  ✓ Compiled /api/auth/register in 988ms (671 modules)
  POST /api/auth/register 500 in 1280ms
  GET /login 200 in 146ms
+   ▲ Next.js 15.5.15
+   - Local:        http://localhost:3011
+   - Network:      http://0.0.0.0:3011
+
+ ✓ Starting...
+ ✓ Ready in 6.3s
+   ▲ Next.js 15.5.15
+   - Local:        http://localhost:3011
+   - Network:      http://0.0.0.0:3011
+
+ ✓ Starting...
+ ✓ Ready in 5.6s

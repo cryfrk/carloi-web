@@ -9,7 +9,7 @@ import {
   type ReactNode,
 } from 'react';
 
-import { requestAuth, requestProxy, requestSession } from '@/lib/client-api';
+import { requestAuth, requestAuthGet, requestProxy, requestSession } from '@/lib/client-api';
 import type { AppSnapshot, BackendResponse, MessageAttachment } from '@/lib/types';
 
 interface SessionContextValue {
@@ -24,10 +24,24 @@ interface SessionContextValue {
     bio: string;
     email: string;
     password: string;
+    accountType?: 'individual' | 'commercial';
+    consents?: Array<{
+      type: 'terms_of_service' | 'privacy_policy' | 'content_responsibility' | 'marketing_optional';
+      accepted?: boolean;
+      version?: string;
+      sourceScreen?: string;
+    }>;
+    commercialProfile?: {
+      companyName?: string;
+      taxOrIdentityType?: 'VKN' | 'TCKN';
+      taxOrIdentityNumber?: string;
+    };
   }) => Promise<BackendResponse>;
+  verifyEmailToken: (token: string) => Promise<BackendResponse>;
   verifyEmail: (email: string, code: string) => Promise<BackendResponse>;
   resendVerificationCode: (email: string) => Promise<BackendResponse>;
   forgotPassword: (email: string) => Promise<BackendResponse>;
+  resetPasswordWithToken: (token: string, password: string) => Promise<BackendResponse>;
   resetPassword: (email: string, code: string, password: string) => Promise<BackendResponse>;
   runSnapshotAction: (path: string, init?: RequestInit) => Promise<BackendResponse>;
   uploadMedia: (file: File, kind: 'image' | 'video' | 'gif' | 'audio') => Promise<string>;
@@ -68,7 +82,25 @@ export function SessionProvider({
   );
 
   const register = useCallback(
-    async (payload: { name: string; handle: string; bio: string; email: string; password: string }) =>
+    async (payload: {
+      name: string;
+      handle: string;
+      bio: string;
+      email: string;
+      password: string;
+      accountType?: 'individual' | 'commercial';
+      consents?: Array<{
+        type: 'terms_of_service' | 'privacy_policy' | 'content_responsibility' | 'marketing_optional';
+        accepted?: boolean;
+        version?: string;
+        sourceScreen?: string;
+      }>;
+      commercialProfile?: {
+        companyName?: string;
+        taxOrIdentityType?: 'VKN' | 'TCKN';
+        taxOrIdentityNumber?: string;
+      };
+    }) =>
       requestAuth<BackendResponse>('/api/auth/register', payload),
     [],
   );
@@ -76,6 +108,14 @@ export function SessionProvider({
   const verifyEmail = useCallback(
     async (email: string, code: string) =>
       syncSnapshot(await requestAuth<BackendResponse>('/api/auth/verify-email', { email, code })),
+    [syncSnapshot],
+  );
+
+  const verifyEmailToken = useCallback(
+    async (token: string) =>
+      syncSnapshot(
+        await requestAuthGet<BackendResponse>(`/api/auth/verify-email?token=${encodeURIComponent(token)}`),
+      ),
     [syncSnapshot],
   );
 
@@ -93,6 +133,17 @@ export function SessionProvider({
   const resetPassword = useCallback(
     async (email: string, code: string, password: string) =>
       syncSnapshot(await requestAuth<BackendResponse>('/api/auth/reset-password', { email, code, password })),
+    [syncSnapshot],
+  );
+
+  const resetPasswordWithToken = useCallback(
+    async (token: string, password: string) =>
+      syncSnapshot(
+        await requestAuth<BackendResponse>('/api/auth/reset-password', {
+          token,
+          newPassword: password,
+        }),
+      ),
     [syncSnapshot],
   );
 
@@ -133,9 +184,11 @@ export function SessionProvider({
       logout,
       login,
       register,
+      verifyEmailToken,
       verifyEmail,
       resendVerificationCode,
       forgotPassword,
+      resetPasswordWithToken,
       resetPassword,
       runSnapshotAction,
       uploadMedia,
@@ -146,9 +199,11 @@ export function SessionProvider({
       logout,
       login,
       register,
+      verifyEmailToken,
       verifyEmail,
       resendVerificationCode,
       forgotPassword,
+      resetPasswordWithToken,
       resetPassword,
       runSnapshotAction,
       uploadMedia,

@@ -1,4 +1,37 @@
 export type PostType = 'standard' | 'listing';
+export type AccountType = 'individual' | 'commercial';
+export type CommercialStatus =
+  | 'not_applied'
+  | 'pending'
+  | 'approved'
+  | 'rejected'
+  | 'suspended'
+  | 'revoked';
+export type CommercialProfileStatus =
+  | 'draft'
+  | 'submitted'
+  | 'pending_review'
+  | 'approved'
+  | 'rejected'
+  | 'suspended'
+  | 'revoked';
+export type CommercialDocumentType =
+  | 'tax_document'
+  | 'authorization_certificate'
+  | 'trade_registry'
+  | 'identity_document'
+  | 'other';
+export type CommercialDocumentStatus =
+  | 'uploaded'
+  | 'pending_review'
+  | 'approved'
+  | 'rejected'
+  | 'expired';
+export type CommercialVerificationMethod =
+  | 'manual_admin_review'
+  | 'e_devlet_reference'
+  | 'external_check'
+  | 'unverified';
 
 export interface MediaAsset {
   id: string;
@@ -55,7 +88,64 @@ export interface ListingDetails {
   isSold?: boolean;
   soldAt?: string;
   registrationInfo?: ListingRegistrationInfo;
+  complianceStatus?:
+    | 'draft'
+    | 'vehicle_info_completed'
+    | 'pricing_completed'
+    | 'ownership_completed'
+    | 'compliance_completed'
+    | 'payment_pending'
+    | 'submitted'
+    | 'published'
+    | 'restricted'
+    | 'rejected'
+    | 'suspended';
+  authorizationStatus?: 'not_required' | 'declared' | 'pending_review' | 'approved' | 'rejected';
+  eidsStatus?:
+    | 'not_started'
+    | 'declared'
+    | 'pending'
+    | 'verified_externally'
+    | 'manual_review_required'
+    | 'failed';
+  riskScore?: number;
+  riskLevel?: 'low' | 'medium' | 'high';
+  reviewRequiredReason?: string;
+  duplicatePlateFlag?: boolean;
+  abnormalPriceFlag?: boolean;
+  spamContentFlag?: boolean;
+  billingStatus?: 'not_required' | 'pending' | 'paid' | 'failed' | 'waived';
   stats: ListingStats;
+}
+
+export type ListingSellerRelationType =
+  | 'owner'
+  | 'spouse'
+  | 'relative_second_degree'
+  | 'authorized_business'
+  | 'other_authorized';
+
+export type ListingBillingStatus = 'not_required' | 'pending' | 'paid' | 'failed' | 'waived';
+
+export interface ListingFlowResult {
+  finalState:
+    | 'draft'
+    | 'vehicle_info_completed'
+    | 'pricing_completed'
+    | 'ownership_completed'
+    | 'compliance_completed'
+    | 'payment_pending'
+    | 'submitted'
+    | 'published'
+    | 'restricted'
+    | 'rejected'
+    | 'suspended';
+  riskLevel: 'low' | 'medium' | 'high';
+  riskScore: number;
+  paymentRequired: boolean;
+  paymentStatus: ListingBillingStatus;
+  paymentRecordId?: string;
+  reviewRequiredReason?: string;
 }
 
 export interface PostComment {
@@ -105,7 +195,7 @@ export interface Post {
 
 export interface MessageAttachment {
   id: string;
-  kind: 'image' | 'video' | 'audio' | 'location';
+  kind: 'image' | 'video' | 'audio' | 'location' | 'report';
   label: string;
   uri?: string;
   mimeType?: string;
@@ -167,10 +257,21 @@ export interface Conversation {
   agreement?: ListingConversationAgreement;
   insuranceStatus?: {
     registrationSharedAt?: string;
+    registrationInfo?: {
+      ownerName: string;
+      ownerIdentityNumber: string;
+      serialNumber: string;
+      documentNumber: string;
+      plateNumber: string;
+    };
     paymentStatus?: 'missing' | 'awaiting_quote' | 'quoted' | 'payment_pending' | 'paid' | 'processing' | 'policy_sent';
     quoteAmount?: string;
+    invoiceUri?: string;
+    policyUri?: string;
     policySentAt?: string;
+    invoiceSentAt?: string;
   };
+  saleProcess?: SaleProcessSummary;
 }
 
 export interface AIMessage {
@@ -195,6 +296,130 @@ export interface SocialProfile {
   avatarUri?: string;
   coverUri?: string;
   followingHandles: string[];
+}
+
+export interface CommercialProfileSummary {
+  id: string;
+  userId: string;
+  companyName: string;
+  taxOrIdentityType: 'VKN' | 'TCKN';
+  taxOrIdentityNumber: string;
+  tradeName?: string | null;
+  mersisNumber?: string | null;
+  authorizedPersonName?: string | null;
+  authorizedPersonTitle?: string | null;
+  phone: string;
+  city: string;
+  district: string;
+  address: string;
+  notes?: string | null;
+  status: CommercialProfileStatus;
+  submittedAt?: string | null;
+  documentTruthfulnessAcceptedAt?: string | null;
+  additionalVerificationAcknowledgedAt?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CommercialDocumentSummary {
+  id: string;
+  userId: string;
+  commercialProfileId: string;
+  type: CommercialDocumentType;
+  fileUrl: string;
+  originalFileName: string;
+  mimeType: string;
+  fileSize: number;
+  uploadedAt: string;
+  status: CommercialDocumentStatus;
+  reviewedByAdminId?: string | null;
+  reviewedAt?: string | null;
+  rejectReason?: string | null;
+  verificationMethod: CommercialVerificationMethod;
+  suspiciousFlag: boolean;
+}
+
+export interface CommercialStatusSummary {
+  enabled: boolean;
+  accountType: AccountType;
+  commercialStatus: CommercialStatus;
+  canUseCommercialListingFeatures: boolean;
+  pendingReview: boolean;
+  additionalVerificationRequired: boolean;
+  yearlyVehicleSaleCount: number;
+  yearlyVehicleListingCount: number;
+  commercialBehaviorFlag: boolean;
+  profile?: CommercialProfileSummary | null;
+  documents: CommercialDocumentSummary[];
+  currentDocuments?: CommercialDocumentSummary[];
+  documentHistory?: CommercialDocumentSummary[];
+  suspiciousDocumentCount: number;
+  minimumDocumentSet: {
+    hasMinimumSet: boolean;
+    requiredDocumentTypes: CommercialDocumentType[];
+  };
+  requiredDocumentTypes: CommercialDocumentType[];
+  canResubmit?: boolean;
+  featureRestrictionLevel?: 'none' | 'publish_blocked' | 'full';
+  publishingBlockedReason?: string | null;
+  nextActions: string[];
+}
+
+export type SaleProcessStatus =
+  | 'interest'
+  | 'negotiating'
+  | 'payment_guidance_shown'
+  | 'ready_for_notary'
+  | 'completed'
+  | 'cancelled';
+
+export interface AdminAccessSummary {
+  isAdmin: boolean;
+  roleKeys: string[];
+  permissions: string[];
+}
+
+export interface SaleProcessSummary {
+  id: string;
+  listingId: string;
+  buyerUserId: string;
+  sellerUserId: string;
+  status: SaleProcessStatus;
+  safePaymentInfoAcceptedAt?: string | null;
+  safePaymentReferenceCode?: string | null;
+  safePaymentProviderName?: string | null;
+  safePaymentStatusNote?: string | null;
+  guidanceEnabled: boolean;
+  requiresGuidanceAcknowledgement: boolean;
+}
+
+export interface ExternalPaymentSession {
+  paymentReference: string;
+  paymentRecordId?: string | null;
+  status: string;
+  amount: string;
+  currency: string;
+  providerName: string;
+  insuranceType: string;
+  paymentUrl?: string;
+  gatewayUrl?: string;
+  trustMessage: string;
+  conversationId?: string;
+  vehicleSummary?: {
+    title?: string;
+    price?: string;
+    location?: string;
+    plateNumber?: string;
+    modelYearSummary?: string;
+  };
+  returnUrls?: {
+    appSuccessUrl: string;
+    appFailureUrl: string;
+    appCancelledUrl?: string;
+    webSuccessUrl: string;
+    webFailureUrl: string;
+    webCancelledUrl?: string;
+  };
 }
 
 export interface LiveMetric {
@@ -295,6 +520,8 @@ export interface AuthState {
 export interface AppSnapshot {
   auth: AuthState;
   profile: SocialProfile;
+  commercial: CommercialStatusSummary;
+  admin?: AdminAccessSummary;
   vehicle?: VehicleProfile;
   settings: UserSettings;
   posts: Post[];
@@ -330,4 +557,7 @@ export interface BackendResponse<T = unknown> {
   provider?: string;
   relatedPostIds?: string[];
   url?: string;
+  payment?: ExternalPaymentSession;
+  data?: T;
+  listingFlow?: ListingFlowResult;
 }

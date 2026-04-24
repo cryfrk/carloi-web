@@ -10,58 +10,101 @@ import { useSession } from '@/providers/session-provider';
 
 export default function VerifyEmailPage() {
   const router = useRouter();
-  const { resendVerificationCode, verifyEmail } = useSession();
+  const { resendVerificationCode, verifyEmailToken } = useSession();
   const [email, setEmail] = useState('');
-  const [code, setCode] = useState('');
+  const [token, setToken] = useState('');
+  const [intent, setIntent] = useState('');
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    const defaultEmail = new URLSearchParams(window.location.search).get('email') || '';
+    const params = new URLSearchParams(window.location.search);
+    const defaultEmail = params.get('email') || '';
+    const defaultToken = params.get('token') || '';
+    const defaultIntent = params.get('intent') || '';
+    const initialMessage = params.get('message') || '';
     setEmail(defaultEmail);
+    setToken(defaultToken);
+    setIntent(defaultIntent);
+    if (initialMessage) {
+      setMessage(initialMessage);
+    }
   }, []);
 
-  async function handleVerify() {
+  useEffect(() => {
+    if (!token) {
+      return;
+    }
+
+    let cancelled = false;
     setLoading(true);
     setError('');
-    try {
-      await verifyEmail(email, code);
-      router.push('/feed');
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : 'Kod doğrulanamadı.');
-    } finally {
-      setLoading(false);
-    }
-  }
+    setMessage('E-posta dogrulaniyor...');
+
+    void verifyEmailToken(token)
+      .then(() => {
+        if (!cancelled) {
+          router.push(intent === 'commercial' ? '/settings/commercial' : '/feed');
+        }
+      })
+      .catch((cause) => {
+        if (!cancelled) {
+          setError(cause instanceof Error ? cause.message : 'Dogrulama baglantisi kullanilamadi.');
+          setMessage('');
+        }
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setLoading(false);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [intent, router, token, verifyEmailToken]);
 
   async function handleResend() {
     setError('');
+    setMessage('');
+    if (!email.trim()) {
+      setError('Lutfen e-posta adresini gir.');
+      return;
+    }
     try {
       const result = await resendVerificationCode(email);
-      setMessage(result.message || 'Doğrulama kodu yeniden gönderildi.');
+      setMessage(result.message || 'Dogrulama baglantisi yeniden gonderildi.');
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : 'Kod yeniden gönderilemedi.');
+      setError(cause instanceof Error ? cause.message : 'Dogrulama baglantisi yeniden gonderilemedi.');
     }
   }
 
   return (
     <AuthShell
-      title="E-posta adresini doğrula"
-      subtitle="Carloi hesabını aktif etmek için 6 haneli kodu gir. Kod 10 dakika geçerli."
+      title="E-posta adresini dogrula"
+      subtitle={
+        token
+          ? 'Dogrulama baglantisi acildi. Hesabin dogrulanirken seni otomatik olarak iceri alacagiz.'
+          : 'Carloi hesabini aktif etmek icin mailine gelen dogrulama baglantisini ac. Baglanti gelmediyse buradan tekrar gonderebilirsin.'
+      }
       alternateHref="/login"
-      alternateLabel="Daha sonra giriş ekranına dön"
+      alternateLabel="Daha sonra giris ekranina don"
     >
       <div className="stack">
         <input className="input" placeholder="E-posta" value={email} onChange={(e) => setEmail(e.target.value)} />
-        <input className="input" placeholder="6 haneli kod" value={code} onChange={(e) => setCode(e.target.value)} />
+        <div style={{ color: 'var(--muted)' }}>
+          Mailine gelen baglantiyi actiginda hesabin otomatik olarak dogrulanir. Baglanti sana ulasmadiysa ayni e-posta adresine yeniden gonderebilirsin.
+        </div>
         {message ? <div style={{ color: 'var(--brand-strong)' }}>{message}</div> : null}
         {error ? <div style={{ color: 'var(--danger)' }}>{error}</div> : null}
-        <button className="button button-primary" onClick={handleVerify} disabled={loading}>
-          {loading ? 'Doğrulanıyor...' : 'Doğrula ve devam et'}
-        </button>
-        <button className="button button-secondary" onClick={handleResend}>
-          Kodu tekrar gönder
+        {intent === 'commercial' ? (
+          <div className="muted">
+            E-posta dogrulamasindan sonra ticari onboarding ekranina yonlendirileceksin.
+          </div>
+        ) : null}
+        <button className="button button-secondary" onClick={handleResend} disabled={loading}>
+          {loading && token ? 'Baglanti dogrulaniyor...' : 'Dogrulama baglantisini tekrar gonder'}
         </button>
       </div>
     </AuthShell>

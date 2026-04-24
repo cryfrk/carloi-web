@@ -4,6 +4,23 @@ import { webEnv } from '@/lib/env';
 import type { AppSnapshot, BackendResponse, PublicProfilePayload, Post } from '@/lib/types';
 
 export const SESSION_COOKIE = webEnv.sessionCookieName;
+const BACKEND_FETCH_TIMEOUT_MS = 30000;
+
+function getBackendTimeoutMessage(path: string) {
+  if (path.includes('/api/auth/register')) {
+    return 'Kayit istegi su anda tamamlanamadi. Carloi sunucusu beklenenden uzun surede yanit veriyor. Lutfen kisa bir sure sonra tekrar deneyin.';
+  }
+
+  return 'Sunucu su anda zamaninda yanit veremedi. Lutfen tekrar deneyin.';
+}
+
+function getBackendNetworkMessage(path: string) {
+  if (path.includes('/api/auth/register')) {
+    return 'Uyelik olusturma servisine su anda ulasilamiyor. Lutfen baglantinizi kontrol edip tekrar deneyin.';
+  }
+
+  return 'Carloi API sunucusuna su anda ulasilamiyor. Lutfen biraz sonra tekrar deneyin.';
+}
 
 export class BackendError extends Error {
   statusCode: number;
@@ -31,19 +48,31 @@ export async function backendFetch<T = BackendResponse>(
     headers.set('Authorization', `Bearer ${init.token}`);
   }
 
-  const response = await fetch(`${webEnv.apiBaseUrl}${path}`, {
-    ...init,
-    headers,
-    cache: init.cache ?? 'no-store',
-    next: init.nextConfig,
-  });
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), BACKEND_FETCH_TIMEOUT_MS);
+
+  let response: Response;
+  try {
+    response = await fetch(`${webEnv.apiBaseUrl}${path}`, {
+      ...init,
+      headers,
+      cache: init.cache ?? 'no-store',
+      next: init.nextConfig,
+      signal: controller.signal,
+    });
+  } catch (error) {
+    if (error instanceof Error && error.name === 'AbortError') {
+      throw new BackendError(getBackendTimeoutMessage(path), 504);
+    }
+
+    throw new BackendError(getBackendNetworkMessage(path), 502);
+  } finally {
+    clearTimeout(timeout);
+  }
 
   const data = (await response.json().catch(() => ({}))) as T & { success?: boolean; message?: string };
   if (!response.ok || (typeof data === 'object' && data && 'success' in data && data.success === false)) {
-    throw new BackendError(
-      (data as { message?: string }).message || 'API isteği başarısız oldu.',
-      response.status || 500,
-    );
+    throw new BackendError((data as { message?: string }).message || 'API istegi basarisiz oldu.', response.status || 500);
   }
 
   return data;

@@ -416,6 +416,87 @@ img {
   background: linear-gradient(180deg, rgba(255, 255, 255, 0.95), rgba(246, 248, 251, 0.95));
 }
 
+.admin-frame {
+  display: grid;
+  grid-template-columns: 320px minmax(0, 1fr);
+  gap: 20px;
+  padding: 24px 0 40px;
+}
+
+.admin-sidebar {
+  position: sticky;
+  top: 20px;
+  align-self: start;
+  padding: 22px;
+}
+
+.admin-nav {
+  display: grid;
+  gap: 10px;
+  margin-top: 24px;
+}
+
+.admin-link {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 14px 16px;
+  border-radius: 18px;
+  border: 1px solid transparent;
+  background: rgba(255, 255, 255, 0.58);
+}
+
+.admin-link.active {
+  background: rgba(18, 123, 115, 0.1);
+  border-color: rgba(18, 123, 115, 0.18);
+}
+
+.admin-main {
+  display: grid;
+  gap: 18px;
+}
+
+.admin-stack {
+  display: grid;
+  gap: 18px;
+}
+
+.admin-hero {
+  padding: 24px;
+}
+
+.admin-metric-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.admin-panel-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.admin-panel-card {
+  padding: 20px;
+}
+
+.admin-bullet-list {
+  margin: 14px 0 0;
+  padding-left: 18px;
+  color: var(--muted);
+  display: grid;
+  gap: 8px;
+}
+
+.admin-flag-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 12px;
+  margin-top: 16px;
+}
+
 .helper-grid {
   display: grid;
   gap: 12px;
@@ -460,5 +541,17 @@ img {
 
   .page-shell {
     width: min(calc(100% - 20px), var(--max-width));
+  }
+}
+
+@media (max-width: 1080px) {
+  .admin-frame,
+  .admin-panel-grid,
+  .admin-metric-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .admin-sidebar {
+    position: static;
   }
 }

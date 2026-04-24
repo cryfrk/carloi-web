@@ -2,7 +2,9 @@
 
 import { useMemo, useState } from 'react';
 
+import { SecurePaymentTransitionPanel } from '@/components/payment/secure-payment-transition-panel';
 import { buildMessageAttachments, useSession } from '@/providers/session-provider';
+import type { ExternalPaymentSession } from '@/lib/types';
 
 export default function MessagesPage() {
   const { snapshot, runSnapshotAction, uploadMedia } = useSession();
@@ -11,10 +13,48 @@ export default function MessagesPage() {
   const [files, setFiles] = useState<File[]>([]);
   const [groupName, setGroupName] = useState('');
   const [groupHandles, setGroupHandles] = useState('');
+  const [paymentSession, setPaymentSession] = useState<ExternalPaymentSession | null>(null);
+  const [paymentError, setPaymentError] = useState('');
+  const [paymentLoadingConversationId, setPaymentLoadingConversationId] = useState('');
+
   if (!snapshot) return null;
 
   const conversations = snapshot.conversations;
   const activeConversation = conversations.find((item) => item.id === selectedId) || conversations[0];
+
+  async function handleOpenInsurancePayment(conversationId: string) {
+    try {
+      setPaymentLoadingConversationId(conversationId);
+      setPaymentError('');
+
+      const response = await runSnapshotAction('/api/payment/initiate', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          flow: 'insurance',
+          conversationId,
+        }),
+      });
+
+      const payment =
+        response.payment ||
+        (response.data && typeof response.data === 'object'
+          ? (response.data as ExternalPaymentSession)
+          : null);
+
+      if (!payment?.paymentUrl) {
+        throw new Error('Guvenli odeme baglantisi olusturulamadi.');
+      }
+
+      setPaymentSession(payment);
+    } catch (error) {
+      setPaymentError(error instanceof Error ? error.message : 'Sigorta odeme adimi acilamadi.');
+    } finally {
+      setPaymentLoadingConversationId('');
+    }
+  }
 
   async function handleSend() {
     if (!activeConversation) return;
@@ -54,10 +94,10 @@ export default function MessagesPage() {
     <>
       <section className="glass-card page-header">
         <div>
-          <div className="eyebrow">Mesajlaşma</div>
-          <h1 style={{ margin: '8px 0 6px' }}>Desktop odaklı konuşma yüzeyi</h1>
+          <div className="eyebrow">Mesajlasma</div>
+          <h1 style={{ margin: '8px 0 6px' }}>Desktop odakli konusma yuzeyi</h1>
           <p className="muted" style={{ margin: 0 }}>
-            Aynı backend, aynı konuşmalar. Doğrudan mesaj, grup ve ilan pazarlığı tek ekranda.
+            Ayni backend, ayni konusmalar. Dogrudan mesaj, grup ve ilan pazarligi tek ekranda.
           </p>
         </div>
       </section>
@@ -65,10 +105,20 @@ export default function MessagesPage() {
       <section className="glass-card split-layout">
         <div className="list-column stack">
           <div className="soft-card" style={{ padding: 16 }}>
-            <strong>Yeni grup oluştur</strong>
+            <strong>Yeni grup olustur</strong>
             <div className="stack" style={{ marginTop: 12 }}>
-              <input className="input" placeholder="Grup adı" value={groupName} onChange={(e) => setGroupName(e.target.value)} />
-              <input className="input" placeholder="@kullanici1,@kullanici2" value={groupHandles} onChange={(e) => setGroupHandles(e.target.value)} />
+              <input
+                className="input"
+                placeholder="Grup adi"
+                value={groupName}
+                onChange={(e) => setGroupName(e.target.value)}
+              />
+              <input
+                className="input"
+                placeholder="@kullanici1,@kullanici2"
+                value={groupHandles}
+                onChange={(e) => setGroupHandles(e.target.value)}
+              />
               <button
                 className="button button-secondary"
                 onClick={() =>
@@ -89,11 +139,15 @@ export default function MessagesPage() {
               </button>
             </div>
           </div>
+
           {conversations.map((conversation) => (
             <button
               key={conversation.id}
               className={`conversation-item ${activeConversation?.id === conversation.id ? 'active' : ''}`}
-              onClick={() => setSelectedId(conversation.id)}
+              onClick={() => {
+                setSelectedId(conversation.id);
+                setPaymentError('');
+              }}
             >
               <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10 }}>
                 <strong>{conversation.name}</strong>
@@ -105,13 +159,16 @@ export default function MessagesPage() {
             </button>
           ))}
         </div>
+
         <div className="detail-column stack">
           {activeConversation ? (
             <>
               <div className="soft-card" style={{ padding: 18 }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'center' }}>
                   <div>
-                    <div className="eyebrow">{activeConversation.type === 'listing' ? 'İlan Sohbeti' : 'Konuşma'}</div>
+                    <div className="eyebrow">
+                      {activeConversation.type === 'listing' ? 'Ilan Sohbeti' : 'Konusma'}
+                    </div>
                     <h2 style={{ margin: '8px 0 6px' }}>{activeConversation.name}</h2>
                   </div>
                   {activeConversation.type === 'listing' && activeConversation.listingContext ? (
@@ -122,7 +179,7 @@ export default function MessagesPage() {
                 {activeConversation.type === 'listing' && activeConversation.listingContext ? (
                   <div className="metrics-grid" style={{ marginTop: 14 }}>
                     <div className="metric-card">
-                      <div className="muted">Araç</div>
+                      <div className="muted">Arac</div>
                       <strong>{activeConversation.listingContext.title}</strong>
                     </div>
                     <div className="metric-card">
@@ -130,9 +187,9 @@ export default function MessagesPage() {
                       <strong>{activeConversation.listingContext.location}</strong>
                     </div>
                     <div className="metric-card">
-                      <div className="muted">Anlaşma</div>
+                      <div className="muted">Anlasma</div>
                       <strong>
-                        {activeConversation.agreement?.myAgreed ? 'Sen onayladın' : 'Onayın bekleniyor'}
+                        {activeConversation.agreement?.myAgreed ? 'Sen onayladin' : 'Onayin bekleniyor'}
                       </strong>
                     </div>
                   </div>
@@ -162,7 +219,7 @@ export default function MessagesPage() {
                           <button
                             className="button button-ghost"
                             onClick={async () => {
-                              const nextText = window.prompt('Mesajı düzenle', message.text);
+                              const nextText = window.prompt('Mesaji duzenle', message.text);
                               if (!nextText) return;
                               await runSnapshotAction(
                                 `/api/conversations/${activeConversation.id}/messages/${message.id}`,
@@ -174,7 +231,7 @@ export default function MessagesPage() {
                               );
                             }}
                           >
-                            Düzenle
+                            Duzenle
                           </button>
                         ) : null}
                         <button
@@ -216,42 +273,74 @@ export default function MessagesPage() {
               </div>
 
               {activeConversation.type === 'listing' ? (
-                <div className="post-actions">
-                  <button className="button button-secondary" onClick={() => runSnapshotAction(`/api/conversations/${activeConversation.id}/agreement`, { method: 'POST' })}>
-                    Anlaştık
-                  </button>
-                  <button className="button button-secondary" onClick={() => runSnapshotAction(`/api/conversations/${activeConversation.id}/registration/share`, { method: 'POST' })}>
-                    Ruhsatı gönder
-                  </button>
-                  <button
-                    className="button button-secondary"
-                    onClick={async () => {
-                      const result = await runSnapshotAction(`/api/conversations/${activeConversation.id}/insurance/pay`, {
-                        method: 'POST',
-                      });
-                      if (result.url) {
-                        window.open(result.url, '_blank', 'noopener,noreferrer');
-                      }
-                    }}
-                  >
-                    Sigorta kes
-                  </button>
-                </div>
+                <>
+                  <div className="post-actions">
+                    <button
+                      className="button button-secondary"
+                      onClick={() => runSnapshotAction(`/api/conversations/${activeConversation.id}/agreement`, { method: 'POST' })}
+                    >
+                      Anlastik
+                    </button>
+                    <button
+                      className="button button-secondary"
+                      onClick={() => runSnapshotAction(`/api/conversations/${activeConversation.id}/registration/share`, { method: 'POST' })}
+                    >
+                      Ruhsati gonder
+                    </button>
+                    <button
+                      className="button button-secondary"
+                      disabled={paymentLoadingConversationId === activeConversation.id}
+                      onClick={() => handleOpenInsurancePayment(activeConversation.id)}
+                    >
+                      {paymentLoadingConversationId === activeConversation.id ? 'Odeme hazirlaniyor...' : 'Sigorta kes'}
+                    </button>
+                  </div>
+
+                  {paymentError ? (
+                    <div className="soft-card" style={{ padding: 16, color: '#b91c1c' }}>
+                      {paymentError}
+                    </div>
+                  ) : null}
+                </>
               ) : null}
 
               <div className="soft-card" style={{ padding: 18, display: 'grid', gap: 12 }}>
-                <textarea className="textarea" placeholder="Mesaj yaz" value={draft} onChange={(e) => setDraft(e.target.value)} />
-                <input type="file" multiple accept="image/*,video/*,audio/*" onChange={(e) => setFiles(Array.from(e.target.files || []))} />
+                <textarea
+                  className="textarea"
+                  placeholder="Mesaj yaz"
+                  value={draft}
+                  onChange={(e) => setDraft(e.target.value)}
+                />
+                <input
+                  type="file"
+                  multiple
+                  accept="image/*,video/*,audio/*"
+                  onChange={(e) => setFiles(Array.from(e.target.files || []))}
+                />
                 <button className="button button-primary" onClick={handleSend}>
-                  Mesajı gönder
+                  Mesaji gonder
                 </button>
               </div>
             </>
           ) : (
-            <div className="empty-state soft-card">Henüz bir konuşma yok.</div>
+            <div className="empty-state soft-card">Henuz bir konusma yok.</div>
           )}
         </div>
       </section>
+
+      {paymentSession ? (
+        <SecurePaymentTransitionPanel
+          payment={paymentSession}
+          onCancel={() => setPaymentSession(null)}
+          onContinue={() => {
+            if (!paymentSession.paymentUrl) {
+              return;
+            }
+
+            window.location.assign(paymentSession.paymentUrl);
+          }}
+        />
+      ) : null}
     </>
   );
 }

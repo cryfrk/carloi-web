@@ -4,7 +4,7 @@ export function toErrorResponse(error: unknown) {
   return NextResponse.json(
     {
       success: false,
-      message: error instanceof Error ? error.message : 'İstek işlenemedi.',
+      message: error instanceof Error ? error.message : 'Istek islenemedi.',
     },
     {
       status:

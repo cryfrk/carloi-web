@@ -11,13 +11,14 @@ export default function ForgotPasswordPage() {
   const [email, setEmail] = useState('');
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
 
   return (
     <AuthShell
-      title="Şifre sıfırlama kodu iste"
-      subtitle="Hesap e-postanı gir. Uygun bir hesap varsa Carloi sana sıfırlama kodu yollar."
+      title="Sifre yenileme baglantisi iste"
+      subtitle="Hesap e-postani gir. Uygun bir hesap varsa Carloi sana guvenli sifre yenileme baglantisi yollar."
       alternateHref="/login"
-      alternateLabel="Giriş ekranına dön"
+      alternateLabel="Giris ekranina don"
     >
       <div className="stack">
         <input className="input" placeholder="E-posta" value={email} onChange={(e) => setEmail(e.target.value)} />
@@ -25,20 +26,24 @@ export default function ForgotPasswordPage() {
         {error ? <div style={{ color: 'var(--danger)' }}>{error}</div> : null}
         <button
           className="button button-primary"
+          disabled={loading}
           onClick={async () => {
             setError('');
+            setLoading(true);
             try {
               const result = await forgotPassword(email);
-              setMessage(result.message || 'Kod gönderildi.');
+              setMessage(result.message || 'Baglanti gonderildi.');
             } catch (cause) {
-              setError(cause instanceof Error ? cause.message : 'Kod gönderilemedi.');
+              setError(cause instanceof Error ? cause.message : 'Baglanti gonderilemedi.');
+            } finally {
+              setLoading(false);
             }
           }}
         >
-          Şifre sıfırlama kodu gönder
+          {loading ? 'Baglanti hazirlaniyor...' : 'Sifre yenileme baglantisi gonder'}
         </button>
         <Link href={`/reset-password?email=${encodeURIComponent(email)}`} className="muted">
-          Zaten kodun var mı? Şifreyi yenile.
+          Maildeki baglantiyi acamadin mi? Sifre yenile ekranini ac.
         </Link>
       </div>
     </AuthShell>

@@ -2,6 +2,7 @@ import { cookies } from 'next/headers';
 import { NextResponse } from 'next/server';
 
 import { SESSION_COOKIE } from '@/lib/backend';
+import { webEnv } from '@/lib/env';
 
 async function forward(request: Request, params: { path: string[] }) {
   const cookieStore = await cookies();
@@ -18,7 +19,7 @@ async function forward(request: Request, params: { path: string[] }) {
   const body = hasBody ? Buffer.from(await request.arrayBuffer()) : undefined;
 
   try {
-    const response = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL}${pathname}`, {
+    const response = await fetch(`${webEnv.apiBaseUrl}${pathname}`, {
       method: request.method,
       headers: {
         ...Object.fromEntries(headers.entries()),
@@ -39,7 +40,10 @@ async function forward(request: Request, params: { path: string[] }) {
     return NextResponse.json(
       {
         success: false,
-        message: error instanceof Error ? error.message : 'Proxy isteği başarısız oldu.',
+        message:
+          error instanceof Error
+            ? error.message
+            : `Proxy istegi basarisiz oldu. Hedef API: ${webEnv.apiBaseUrl}`,
       },
       { status: 502 },
     );
