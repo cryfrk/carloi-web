@@ -1,6 +1,11 @@
 import { cookies } from 'next/headers';
 
 import { webEnv } from '@/lib/env';
+import {
+  normalizeAppSnapshot,
+  normalizePost,
+  normalizePublicProfilePayload,
+} from '@/lib/normalize-snapshot';
 import type { AppSnapshot, BackendResponse, PublicProfilePayload, Post } from '@/lib/types';
 
 export const SESSION_COOKIE = webEnv.sessionCookieName;
@@ -93,7 +98,7 @@ export async function getServerSnapshot() {
     const response = await backendFetch<BackendResponse<AppSnapshot>>('/api/bootstrap', {
       token,
     });
-    return response.snapshot || null;
+    return normalizeAppSnapshot(response.snapshot);
   } catch {
     return null;
   }
@@ -101,12 +106,12 @@ export async function getServerSnapshot() {
 
 export async function getPublicPost(postId: string) {
   const response = await backendFetch<BackendResponse<Post>>(`/api/public/posts/${postId}`);
-  return response.post || null;
+  return response.post ? normalizePost(response.post) : null;
 }
 
 export async function getPublicListing(postId: string) {
   const response = await backendFetch<BackendResponse<Post>>(`/api/public/listings/${postId}`);
-  return response.post || null;
+  return response.post ? normalizePost(response.post) : null;
 }
 
 export async function getPublicProfile(handle: string) {
@@ -114,11 +119,11 @@ export async function getPublicProfile(handle: string) {
     `/api/public/profiles/${encodeURIComponent(handle.replace(/^@/, ''))}`,
   );
 
-  return {
-    profile: response.profile!,
-    posts: response.posts || [],
-    listings: response.listings || [],
-    followers: response.followers || [],
-    following: response.following || [],
-  };
+  return normalizePublicProfilePayload({
+    profile: response.profile,
+    posts: response.posts,
+    listings: response.listings,
+    followers: response.followers,
+    following: response.following,
+  }) as PublicProfilePayload;
 }

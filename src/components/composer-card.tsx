@@ -13,7 +13,44 @@ type ListingStepKey =
   | 'billing_listing_fee'
   | 'preview_publish';
 
-const emptyListingDraft = {
+type SellerRelationType =
+  | 'owner'
+  | 'spouse'
+  | 'relative_second_degree'
+  | 'authorized_business'
+  | 'other_authorized';
+
+type ListingDraftState = {
+  title: string;
+  price: string;
+  city: string;
+  district: string;
+  location: string;
+  transmission: string;
+  fuelType: string;
+  bodyType: string;
+  color: string;
+  plateOrigin: string;
+  plateNumber: string;
+  damageRecord: string;
+  paintInfo: string;
+  changedParts: string;
+  accidentInfo: string;
+  description: string;
+  extraEquipment: string;
+  includeExpertiz: boolean;
+  phone: string;
+  sellerRelationType: SellerRelationType;
+  registrationOwnerFullNameDeclared: string;
+  isOwnerSameAsAccountHolder: boolean;
+  authorizationDeclarationText: string;
+  registrationOwnerName: string;
+  registrationOwnerIdentityNumber: string;
+  registrationSerialNumber: string;
+  registrationDocumentNumber: string;
+};
+
+const emptyListingDraft: ListingDraftState = {
   title: '',
   price: '',
   city: '',
@@ -43,21 +80,45 @@ const emptyListingDraft = {
   registrationDocumentNumber: '',
 };
 
-const steps = [
-  { key: 'vehicle_information', title: 'Araç Bilgileri' },
-  { key: 'pricing_description', title: 'Fiyat ve Açıklama' },
-  { key: 'ownership_authorization', title: 'Sahiplik / Yetki' },
-  { key: 'compliance_responsibility', title: 'Uyumluluk' },
-  { key: 'billing_listing_fee', title: 'Ücretlendirme' },
-  { key: 'preview_publish', title: 'Önizleme' },
-] as const satisfies ReadonlyArray<{ key: ListingStepKey; title: string }>;
+const steps: ReadonlyArray<{ key: ListingStepKey; title: string; summary: string }> = [
+  {
+    key: 'vehicle_information',
+    title: 'Arac bilgileri',
+    summary: 'Baslik, konum ve temel ilan alanlari.',
+  },
+  {
+    key: 'pricing_description',
+    title: 'Fiyat ve aciklama',
+    summary: 'Vitrin metni, fiyat ve durum detaylari.',
+  },
+  {
+    key: 'ownership_authorization',
+    title: 'Sahiplik ve yetki',
+    summary: 'Ruhsat sahibi ve temsil yetkisi bilgileri.',
+  },
+  {
+    key: 'compliance_responsibility',
+    title: 'Uyumluluk',
+    summary: 'Sorumluluk ve guvenli odeme kabulleri.',
+  },
+  {
+    key: 'billing_listing_fee',
+    title: 'Ucretlendirme',
+    summary: 'Abonelik ve listing ucreti kontrolu.',
+  },
+  {
+    key: 'preview_publish',
+    title: 'Onizleme',
+    summary: 'Risk, moderation ve yayin karari.',
+  },
+];
 
-const relationOptions = [
-  { key: 'owner', label: 'Araç sahibi' },
-  { key: 'spouse', label: 'Eş' },
-  { key: 'relative_second_degree', label: '2. derece yakını' },
-  { key: 'authorized_business', label: 'Yetkili işletme' },
-  { key: 'other_authorized', label: 'Diğer yetkili' },
+const relationOptions: Array<{ key: SellerRelationType; label: string }> = [
+  { key: 'owner', label: 'Arac sahibi' },
+  { key: 'spouse', label: 'Es' },
+  { key: 'relative_second_degree', label: '2. derece yakin' },
+  { key: 'authorized_business', label: 'Yetkili isletme' },
+  { key: 'other_authorized', label: 'Diger yetkili' },
 ];
 
 function buildSteps() {
@@ -69,7 +130,7 @@ export function ComposerCard() {
   const [mode, setMode] = useState<'standard' | 'listing'>('standard');
   const [content, setContent] = useState('');
   const [files, setFiles] = useState<File[]>([]);
-  const [listingDraft, setListingDraft] = useState(emptyListingDraft);
+  const [listingDraft, setListingDraft] = useState<ListingDraftState>(emptyListingDraft);
   const [listingResponsibilityAccepted, setListingResponsibilityAccepted] = useState(false);
   const [safePaymentAccepted, setSafePaymentAccepted] = useState(false);
   const [authorizationAccepted, setAuthorizationAccepted] = useState(false);
@@ -78,6 +139,7 @@ export function ComposerCard() {
   const [featuredRequested, setFeaturedRequested] = useState(false);
   const [activeStep, setActiveStep] = useState<ListingStepKey>('vehicle_information');
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
+  const [statusTone, setStatusTone] = useState<'success' | 'error'>('success');
   const [submitting, setSubmitting] = useState(false);
 
   const canCreateListing = Boolean(snapshot?.vehicle);
@@ -95,38 +157,66 @@ export function ComposerCard() {
     [files],
   );
 
-  function updateListingField(key: keyof typeof emptyListingDraft, value: string | boolean) {
+  function setStatus(message: string | null, tone: 'success' | 'error' = 'success') {
+    setStatusMessage(message);
+    setStatusTone(tone);
+  }
+
+  function updateListingField<K extends keyof ListingDraftState>(key: K, value: ListingDraftState[K]) {
     setListingDraft((current) => ({
       ...current,
       [key]: value,
     }));
   }
 
+  function resetComposer() {
+    setContent('');
+    setFiles([]);
+    setListingDraft(emptyListingDraft);
+    setListingResponsibilityAccepted(false);
+    setSafePaymentAccepted(false);
+    setAuthorizationAccepted(false);
+    setBillingStatus('pending');
+    setSubscriptionTermsAccepted(false);
+    setFeaturedRequested(false);
+    setMode('standard');
+    setActiveStep('vehicle_information');
+  }
+
   function getStepError(step: ListingStepKey) {
     switch (step) {
       case 'vehicle_information':
-        if (!listingDraft.title.trim()) return 'İlan başlığı zorunludur.';
-        if (!listingDraft.city.trim() || !listingDraft.district.trim()) return 'Şehir ve ilçe zorunludur.';
+        if (!listingDraft.title.trim()) return 'Ilan basligi zorunludur.';
+        if (!listingDraft.city.trim() || !listingDraft.district.trim()) {
+          return 'Sehir ve ilce alanlarini tamamlayin.';
+        }
         return '';
       case 'pricing_description':
         if (!listingDraft.price.trim()) return 'Fiyat zorunludur.';
-        if (listingDraft.description.trim().length < 20) return 'Açıklama en az 20 karakter olmalıdır.';
+        if (listingDraft.description.trim().length < 20) {
+          return 'Aciklama en az 20 karakter olmali.';
+        }
         return '';
       case 'ownership_authorization':
-        if (!listingDraft.registrationOwnerFullNameDeclared.trim()) return 'Ruhsat sahibi adı zorunludur.';
-        if (listingDraft.sellerRelationType !== 'owner' && !listingDraft.authorizationDeclarationText.trim()) {
-          return 'Yetki beyanı zorunludur.';
+        if (!listingDraft.registrationOwnerFullNameDeclared.trim()) {
+          return 'Ruhsat sahibi adini girin.';
+        }
+        if (
+          listingDraft.sellerRelationType !== 'owner' &&
+          !listingDraft.authorizationDeclarationText.trim()
+        ) {
+          return 'Yetki beyan metni zorunludur.';
         }
         return '';
       case 'compliance_responsibility':
-        if (!listingResponsibilityAccepted) return 'İlan sorumluluğu onayı gereklidir.';
-        if (!safePaymentAccepted) return 'Güvenli ödeme bilgilendirmesi onayı gereklidir.';
+        if (!listingResponsibilityAccepted) return 'Ilan sorumlulugu kabul edilmelidir.';
+        if (!safePaymentAccepted) return 'Guvenli odeme bilgilendirmesi kabul edilmelidir.';
         if (listingDraft.sellerRelationType !== 'owner' && !authorizationAccepted) {
-          return 'Yetki beyanını onaylayın.';
+          return 'Yetki beyan onayini tamamlayin.';
         }
         return '';
       case 'billing_listing_fee':
-        if (!subscriptionTermsAccepted) return 'Abonelik ve dijital hizmet koşulları onayı gereklidir.';
+        if (!subscriptionTermsAccepted) return 'Abonelik kosullarini onaylayin.';
         return '';
       default:
         return '';
@@ -135,7 +225,8 @@ export function ComposerCard() {
 
   async function handleSubmit() {
     setSubmitting(true);
-    setStatusMessage(null);
+    setStatus(null);
+
     try {
       const uploadedMedia = await Promise.all(
         files.map(async (file) => {
@@ -144,13 +235,12 @@ export function ComposerCard() {
             : file.type === 'image/gif'
               ? 'gif'
               : 'image';
-
           const url = await uploadMedia(file, kind);
           return {
             kind,
             uri: url,
             label: file.name,
-            hint: mode === 'listing' ? 'İlan medyası' : 'Gönderi medyası',
+            hint: mode === 'listing' ? 'Ilan medyasi' : 'Gonderi medyasi',
             fileName: file.name,
             mimeType: file.type,
           };
@@ -170,10 +260,27 @@ export function ComposerCard() {
           consents:
             mode === 'listing'
               ? [
-                  { type: 'listing_responsibility', accepted: true, version: '2026-04', sourceScreen: 'listing_creation' },
-                  { type: 'safe_payment_information', accepted: true, version: '2026-04', sourceScreen: 'listing_creation' },
+                  {
+                    type: 'listing_responsibility',
+                    accepted: true,
+                    version: '2026-04',
+                    sourceScreen: 'listing_creation',
+                  },
+                  {
+                    type: 'safe_payment_information',
+                    accepted: true,
+                    version: '2026-04',
+                    sourceScreen: 'listing_creation',
+                  },
                   ...(webFeatureFlags.enablePaidListings && subscriptionTermsAccepted
-                    ? [{ type: 'subscription_terms', accepted: true, version: '2026-04', sourceScreen: 'listing_billing' }]
+                    ? [
+                        {
+                          type: 'subscription_terms',
+                          accepted: true,
+                          version: '2026-04',
+                          sourceScreen: 'listing_billing',
+                        },
+                      ]
                     : []),
                 ]
               : undefined,
@@ -206,11 +313,13 @@ export function ComposerCard() {
                   },
                   ownershipAuthorization: {
                     sellerRelationType: listingDraft.sellerRelationType,
-                    registrationOwnerFullNameDeclared: listingDraft.registrationOwnerFullNameDeclared,
+                    registrationOwnerFullNameDeclared:
+                      listingDraft.registrationOwnerFullNameDeclared,
                     isOwnerSameAsAccountHolder: listingDraft.isOwnerSameAsAccountHolder,
                     authorizationDeclarationText: listingDraft.authorizationDeclarationText,
                     registrationOwnerName: listingDraft.registrationOwnerName,
-                    registrationOwnerIdentityNumber: listingDraft.registrationOwnerIdentityNumber,
+                    registrationOwnerIdentityNumber:
+                      listingDraft.registrationOwnerIdentityNumber,
                     registrationSerialNumber: listingDraft.registrationSerialNumber,
                     registrationDocumentNumber: listingDraft.registrationDocumentNumber,
                   },
@@ -233,24 +342,16 @@ export function ComposerCard() {
         }),
       });
 
-      setContent('');
-      setFiles([]);
-      setListingDraft(emptyListingDraft);
-      setListingResponsibilityAccepted(false);
-      setSafePaymentAccepted(false);
-      setAuthorizationAccepted(false);
-      setBillingStatus('pending');
-      setSubscriptionTermsAccepted(false);
-      setFeaturedRequested(false);
-      setMode('standard');
-      setActiveStep('vehicle_information');
+      resetComposer();
+
       if (response.url && typeof window !== 'undefined') {
         window.location.assign(response.url);
         return;
       }
-      setStatusMessage(response.message || 'İşlem tamamlandı.');
+
+      setStatus(response.message || 'Icerik kaydedildi.');
     } catch (error) {
-      setStatusMessage(error instanceof Error ? error.message : 'İşlem tamamlanamadı.');
+      setStatus(error instanceof Error ? error.message : 'Islem tamamlanamadi.', 'error');
     } finally {
       setSubmitting(false);
     }
@@ -260,29 +361,52 @@ export function ComposerCard() {
   const currentStep = activeSteps[currentStepIndex];
 
   return (
-    <section className="glass-card" style={{ padding: 22, display: 'grid', gap: 16 }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'center' }}>
+    <section className="glass-card composer-shell">
+      <div className="page-header" style={{ marginBottom: 0 }}>
         <div>
-          <div className="eyebrow">Yeni paylaşım</div>
-          <h2 style={{ margin: '8px 0 0' }}>Carloi akışına içerik ekle</h2>
+          <div className="eyebrow">Yeni icerik</div>
+          <h2 style={{ margin: '10px 0 6px' }}>Feed ve listing akisini ayni yerden yonet</h2>
+          <p className="muted" style={{ margin: 0 }}>
+            Sosyal gonderi yayinlayabilir, listing akisini adim adim tamamlayabilir ve moderation
+            kurallarini tek kartta gorebilirsin.
+          </p>
         </div>
         <div className="post-actions">
-          <button className={`button ${mode === 'standard' ? 'button-primary' : 'button-secondary'}`} onClick={() => setMode('standard')}>
-            Gönderi
+          <button
+            className={`button ${mode === 'standard' ? 'button-primary' : 'button-secondary'}`}
+            onClick={() => {
+              setMode('standard');
+              setStatus(null);
+            }}
+            type="button"
+          >
+            Gonderi
           </button>
           <button
             className={`button ${mode === 'listing' ? 'button-primary' : 'button-secondary'}`}
             disabled={!canCreateListing}
-            onClick={() => setMode('listing')}
+            onClick={() => {
+              setMode('listing');
+              setStatus(null);
+            }}
+            type="button"
           >
-            İlan v2
+            Listing
           </button>
         </div>
       </div>
 
-      <label className="soft-card" style={{ padding: 16, display: 'grid', gap: 10, cursor: 'pointer' }}>
-        <strong>Fotoğraf / video ekle</strong>
-        <span className="muted">Medya alanı ilan kartında öne çıkarılır.</span>
+      {!canCreateListing && mode === 'listing' ? (
+        <div className="status-banner error">
+          Listing olusturmak icin once arac profilinizi tamamlamaniz gerekiyor.
+        </div>
+      ) : null}
+
+      <label className="soft-card composer-dropzone">
+        <strong>Gorsel veya video ekle</strong>
+        <span className="muted">
+          Medya secimi hem feed kartinda hem de listing detayinda daha guclu gorunurluk saglar.
+        </span>
         <input
           type="file"
           accept="image/*,video/*"
@@ -290,31 +414,41 @@ export function ComposerCard() {
           style={{ display: 'none' }}
           onChange={(event) => setFiles(Array.from(event.target.files || []))}
         />
-        {files.length ? (
-          <div className="post-actions">
-            {files.map((file) => (
-              <span key={file.name} className="tag">
+        <div className="post-actions">
+          {files.length ? (
+            files.map((file) => (
+              <span key={`${file.name}-${file.size}`} className="tag">
                 {file.name}
               </span>
-            ))}
-          </div>
-        ) : null}
+            ))
+          ) : (
+            <span className="tag">Dosya secilmedi</span>
+          )}
+        </div>
       </label>
 
       {mode === 'standard' ? (
-        <textarea
-          className="textarea"
-          placeholder="Toplulukla ne paylaşmak istiyorsunuz?"
-          value={content}
-          onChange={(event) => setContent(event.target.value)}
-        />
+        <div className="stack">
+          <textarea
+            className="textarea"
+            placeholder="Toplulukla ne paylasmak istiyorsunuz?"
+            value={content}
+            onChange={(event) => setContent(event.target.value)}
+          />
+          <div className="post-actions" style={{ justifyContent: 'space-between' }}>
+            <span className="muted">Kisa ve net paylasimlar feed performansini guclendirir.</span>
+            <button className="button button-primary" disabled={submitting} onClick={handleSubmit} type="button">
+              {submitting ? 'Gonderi yayinlaniyor...' : 'Gonderiyi yayinla'}
+            </button>
+          </div>
+        </div>
       ) : (
-        <>
-          <div className="post-actions" style={{ flexWrap: 'wrap' }}>
+        <div className="stack">
+          <div className="auth-step-list">
             {activeSteps.map((step, index) => (
               <button
                 key={step.key}
-                className={`button ${step.key === activeStep ? 'button-primary' : 'button-secondary'}`}
+                className={`auth-step-chip ${step.key === activeStep ? 'active' : ''}`}
                 onClick={() => setActiveStep(step.key)}
                 type="button"
               >
@@ -325,47 +459,51 @@ export function ComposerCard() {
 
           <section className="soft-card" style={{ padding: 18, display: 'grid', gap: 14 }}>
             <div>
-              <div className="eyebrow">Adım {currentStepIndex + 1}</div>
-              <h3 style={{ margin: '8px 0 0' }}>{currentStep?.title}</h3>
+              <div className="eyebrow">Adim {currentStepIndex + 1}</div>
+              <h3 style={{ margin: '8px 0 4px' }}>{currentStep?.title}</h3>
+              <p className="muted" style={{ margin: 0 }}>{currentStep?.summary}</p>
             </div>
 
             {activeStep === 'vehicle_information' ? (
               <div className="two-up">
-                <input className="input" placeholder="İlan başlığı" value={listingDraft.title} onChange={(event) => updateListingField('title', event.target.value)} />
+                <input className="input" placeholder="Ilan basligi" value={listingDraft.title} onChange={(event) => updateListingField('title', event.target.value)} />
                 <input className="input" placeholder="Telefon" value={listingDraft.phone} onChange={(event) => updateListingField('phone', event.target.value)} />
-                <input className="input" placeholder="Şehir" value={listingDraft.city} onChange={(event) => updateListingField('city', event.target.value)} />
-                <input className="input" placeholder="İlçe" value={listingDraft.district} onChange={(event) => updateListingField('district', event.target.value)} />
-                <input className="input" placeholder="Konum satırı" value={listingDraft.location} onChange={(event) => updateListingField('location', event.target.value)} />
+                <input className="input" placeholder="Sehir" value={listingDraft.city} onChange={(event) => updateListingField('city', event.target.value)} />
+                <input className="input" placeholder="Ilce" value={listingDraft.district} onChange={(event) => updateListingField('district', event.target.value)} />
+                <input className="input" placeholder="Konum satiri" value={listingDraft.location} onChange={(event) => updateListingField('location', event.target.value)} />
                 <input className="input" placeholder="Plaka (opsiyonel)" value={listingDraft.plateNumber} onChange={(event) => updateListingField('plateNumber', event.target.value)} />
-                <input className="input" placeholder="Yakıt" value={listingDraft.fuelType} onChange={(event) => updateListingField('fuelType', event.target.value)} />
+                <input className="input" placeholder="Yakit tipi" value={listingDraft.fuelType} onChange={(event) => updateListingField('fuelType', event.target.value)} />
                 <input className="input" placeholder="Vites" value={listingDraft.transmission} onChange={(event) => updateListingField('transmission', event.target.value)} />
                 <input className="input" placeholder="Kasa tipi" value={listingDraft.bodyType} onChange={(event) => updateListingField('bodyType', event.target.value)} />
                 <input className="input" placeholder="Renk" value={listingDraft.color} onChange={(event) => updateListingField('color', event.target.value)} />
-                <input className="input" placeholder="Plaka kökeni" value={listingDraft.plateOrigin} onChange={(event) => updateListingField('plateOrigin', event.target.value)} />
-                <label className="tag" style={{ justifyContent: 'space-between' }}>
-                  <span>Carloi ekspertiz özetini ekle</span>
+                <input className="input" placeholder="Plaka kokeni" value={listingDraft.plateOrigin} onChange={(event) => updateListingField('plateOrigin', event.target.value)} />
+                <label className="support-card toggle-card">
+                  <div>
+                    <strong>Carloi ekspertiz ozeti</strong>
+                    <div className="muted">Arac sagligi verisini listing kartina ekler.</div>
+                  </div>
                   <input type="checkbox" checked={listingDraft.includeExpertiz} onChange={(event) => updateListingField('includeExpertiz', event.target.checked)} />
                 </label>
               </div>
             ) : null}
 
             {activeStep === 'pricing_description' ? (
-              <div style={{ display: 'grid', gap: 12 }}>
+              <div className="stack">
                 <input className="input" placeholder="Fiyat" value={listingDraft.price} onChange={(event) => updateListingField('price', event.target.value)} />
-                <textarea className="textarea" placeholder="Vitrin özeti" value={content} onChange={(event) => setContent(event.target.value)} />
+                <textarea className="textarea" placeholder="Feed ozet metni" value={content} onChange={(event) => setContent(event.target.value)} />
                 <div className="two-up">
-                  <input className="input" placeholder="Hasar kaydı" value={listingDraft.damageRecord} onChange={(event) => updateListingField('damageRecord', event.target.value)} />
-                  <input className="input" placeholder="Boya" value={listingDraft.paintInfo} onChange={(event) => updateListingField('paintInfo', event.target.value)} />
-                  <input className="input" placeholder="Değişen" value={listingDraft.changedParts} onChange={(event) => updateListingField('changedParts', event.target.value)} />
-                  <input className="input" placeholder="Kaza geçmişi" value={listingDraft.accidentInfo} onChange={(event) => updateListingField('accidentInfo', event.target.value)} />
+                  <input className="input" placeholder="Hasar kaydi" value={listingDraft.damageRecord} onChange={(event) => updateListingField('damageRecord', event.target.value)} />
+                  <input className="input" placeholder="Boya durumu" value={listingDraft.paintInfo} onChange={(event) => updateListingField('paintInfo', event.target.value)} />
+                  <input className="input" placeholder="Degisen parcalar" value={listingDraft.changedParts} onChange={(event) => updateListingField('changedParts', event.target.value)} />
+                  <input className="input" placeholder="Kaza gecmisi" value={listingDraft.accidentInfo} onChange={(event) => updateListingField('accidentInfo', event.target.value)} />
                 </div>
-                <input className="input" placeholder="Ek donanım" value={listingDraft.extraEquipment} onChange={(event) => updateListingField('extraEquipment', event.target.value)} />
-                <textarea className="textarea" placeholder="Detaylı açıklama" value={listingDraft.description} onChange={(event) => updateListingField('description', event.target.value)} />
+                <input className="input" placeholder="Ek donanim" value={listingDraft.extraEquipment} onChange={(event) => updateListingField('extraEquipment', event.target.value)} />
+                <textarea className="textarea" placeholder="Detayli aciklama" value={listingDraft.description} onChange={(event) => updateListingField('description', event.target.value)} />
               </div>
             ) : null}
 
             {activeStep === 'ownership_authorization' ? (
-              <div style={{ display: 'grid', gap: 12 }}>
+              <div className="stack">
                 <div className="post-actions" style={{ flexWrap: 'wrap' }}>
                   {relationOptions.map((option) => (
                     <button
@@ -378,9 +516,12 @@ export function ComposerCard() {
                     </button>
                   ))}
                 </div>
-                <input className="input" placeholder="Ruhsat sahibi adı soyadı" value={listingDraft.registrationOwnerFullNameDeclared} onChange={(event) => updateListingField('registrationOwnerFullNameDeclared', event.target.value)} />
-                <label className="tag" style={{ justifyContent: 'space-between' }}>
-                  <span>Ruhsat sahibi hesap sahibi ile aynı</span>
+                <input className="input" placeholder="Ruhsat sahibi ad soyad" value={listingDraft.registrationOwnerFullNameDeclared} onChange={(event) => updateListingField('registrationOwnerFullNameDeclared', event.target.value)} />
+                <label className="support-card toggle-card">
+                  <div>
+                    <strong>Hesap sahibi ile ayni kisi</strong>
+                    <div className="muted">Ruhsat sahibi ve hesap sahibi ayniysa ek yetki metni gerekmez.</div>
+                  </div>
                   <input type="checkbox" checked={listingDraft.isOwnerSameAsAccountHolder} onChange={(event) => updateListingField('isOwnerSameAsAccountHolder', event.target.checked)} />
                 </label>
                 {listingDraft.sellerRelationType !== 'owner' ? (
@@ -388,138 +529,181 @@ export function ComposerCard() {
                 ) : null}
                 <div className="two-up">
                   <input className="input" placeholder="Ruhsat sahibi" value={listingDraft.registrationOwnerName} onChange={(event) => updateListingField('registrationOwnerName', event.target.value)} />
-                  <input className="input" placeholder="Kimlik numarası" value={listingDraft.registrationOwnerIdentityNumber} onChange={(event) => updateListingField('registrationOwnerIdentityNumber', event.target.value)} />
-                  <input className="input" placeholder="Seri no" value={listingDraft.registrationSerialNumber} onChange={(event) => updateListingField('registrationSerialNumber', event.target.value)} />
-                  <input className="input" placeholder="Belge no" value={listingDraft.registrationDocumentNumber} onChange={(event) => updateListingField('registrationDocumentNumber', event.target.value)} />
+                  <input className="input" placeholder="Kimlik numarasi" value={listingDraft.registrationOwnerIdentityNumber} onChange={(event) => updateListingField('registrationOwnerIdentityNumber', event.target.value)} />
+                  <input className="input" placeholder="Seri numarasi" value={listingDraft.registrationSerialNumber} onChange={(event) => updateListingField('registrationSerialNumber', event.target.value)} />
+                  <input className="input" placeholder="Belge numarasi" value={listingDraft.registrationDocumentNumber} onChange={(event) => updateListingField('registrationDocumentNumber', event.target.value)} />
                 </div>
               </div>
             ) : null}
 
             {activeStep === 'compliance_responsibility' ? (
-              <div style={{ display: 'grid', gap: 12 }}>
-                <label className="tag" style={{ justifyContent: 'space-between' }}>
-                  <span>İlan sorumluluğunu kabul ediyorum</span>
+              <div className="stack">
+                <label className="support-card toggle-card">
+                  <div>
+                    <strong>Ilan sorumlulugu</strong>
+                    <div className="muted">Fiyat, arac bilgisi ve temsil yetkisi kullanici beyanidir.</div>
+                  </div>
                   <input type="checkbox" checked={listingResponsibilityAccepted} onChange={(event) => setListingResponsibilityAccepted(event.target.checked)} />
                 </label>
                 {listingDraft.sellerRelationType !== 'owner' ? (
-                  <label className="tag" style={{ justifyContent: 'space-between' }}>
-                    <span>Yetki beyanını onaylıyorum</span>
+                  <label className="support-card toggle-card">
+                    <div>
+                      <strong>Yetki onayi</strong>
+                      <div className="muted">Yetki belgesinin ve beyanin gecerli oldugunu onaylar.</div>
+                    </div>
                     <input type="checkbox" checked={authorizationAccepted} onChange={(event) => setAuthorizationAccepted(event.target.checked)} />
                   </label>
                 ) : null}
-                <label className="tag" style={{ justifyContent: 'space-between' }}>
-                  <span>Güvenli ödeme bilgilendirmesini kabul ediyorum</span>
+                <label className="support-card toggle-card">
+                  <div>
+                    <strong>Guvenli odeme bilgilendirmesi</strong>
+                    <div className="muted">Platformun resmi odeme saglayicisi olmadigi bilgisi kayit altina alinir.</div>
+                  </div>
                   <input type="checkbox" checked={safePaymentAccepted} onChange={(event) => setSafePaymentAccepted(event.target.checked)} />
                 </label>
-                <p className="muted">Araç ve yetki bilgileri kullanıcı tarafından beyan edilir. Gerekirse ek doğrulama istenebilir.</p>
               </div>
             ) : null}
 
             {activeStep === 'billing_listing_fee' ? (
-              <div style={{ display: 'grid', gap: 12 }}>
-                <p className="muted">Ucretli ilan aciksa odeme veya aktif abonelik backend tarafinda dogrulanmadan yayin acilmaz.</p>
-                <div className="post-actions">
+              <div className="stack">
+                <div className="support-grid">
                   <button
-                    className={`button ${billingStatus === 'pending' ? 'button-primary' : 'button-secondary'}`}
+                    className={`choice-card ${billingStatus === 'pending' ? 'active-card' : ''}`}
                     onClick={() => {
                       setBillingStatus('pending');
                       setFeaturedRequested(false);
-                      setSubscriptionTermsAccepted(true);
                     }}
                     type="button"
                   >
-                    Standart yayin
+                    <div className="eyebrow">Standart</div>
+                    <strong>Normal listing</strong>
+                    <p className="muted" style={{ marginBottom: 0 }}>
+                      Gerekiyorsa backend standart listing ucretini veya abonelik durumunu kontrol eder.
+                    </p>
                   </button>
                   <button
-                    className={`button ${billingStatus === 'paid' ? 'button-primary' : 'button-secondary'}`}
+                    className={`choice-card ${billingStatus === 'paid' ? 'active-card' : ''}`}
                     onClick={() => {
                       setBillingStatus('paid');
                       setFeaturedRequested(true);
-                      setSubscriptionTermsAccepted(true);
                     }}
                     type="button"
                   >
-                    Featured talebi
+                    <div className="eyebrow">Featured</div>
+                    <strong>Vitrin talebi</strong>
+                    <p className="muted" style={{ marginBottom: 0 }}>
+                      Odenecekse checkout acilir, onay beklenirse listing incelemeye duser.
+                    </p>
                   </button>
                 </div>
-                <label className="tag" style={{ justifyContent: 'space-between' }}>
-                  <span>Abonelik ve dijital hizmet kosullarini kabul ediyorum</span>
-                  <input
-                    type="checkbox"
-                    checked={subscriptionTermsAccepted}
-                    onChange={(event) => setSubscriptionTermsAccepted(event.target.checked)}
-                  />
+                <label className="support-card toggle-card">
+                  <div>
+                    <strong>Abonelik ve dijital hizmet kosullari</strong>
+                    <div className="muted">Ucretli alanlar aciksa billing onayi olmadan yayin acilmaz.</div>
+                  </div>
+                  <input type="checkbox" checked={subscriptionTermsAccepted} onChange={(event) => setSubscriptionTermsAccepted(event.target.checked)} />
                 </label>
               </div>
             ) : null}
 
             {activeStep === 'preview_publish' ? (
-              <div style={{ display: 'grid', gap: 12 }}>
-                <div className="soft-card" style={{ padding: 16 }}>
-                  <strong>{listingDraft.title || 'Başlıksız ilan'}</strong>
-                  <p className="muted" style={{ margin: '8px 0 0' }}>
-                    {listingDraft.price || 'Fiyat yok'} • {listingDraft.city || 'Şehir yok'} / {listingDraft.district || 'İlçe yok'}
+              <div className="stack">
+                <div className="listing-inline-card">
+                  <div className="listing-inline-header">
+                    <div className="stack" style={{ gap: 4 }}>
+                      <div className="eyebrow">Listing onizleme</div>
+                      <h3>{listingDraft.title || 'Baslik bekleniyor'}</h3>
+                      <div className="listing-inline-price">{listingDraft.price || 'Fiyat bekleniyor'}</div>
+                    </div>
+                    <div className="listing-inline-badges">
+                      <span className="tag">{listingDraft.city || 'Sehir'}</span>
+                      <span className="tag">{featuredRequested ? 'Featured talebi' : 'Standart yayin'}</span>
+                    </div>
+                  </div>
+                  <div className="listing-inline-grid">
+                    <div className="metric-card">
+                      <div className="muted">Konum</div>
+                      <strong>{listingDraft.location || 'Konum bekleniyor'}</strong>
+                    </div>
+                    <div className="metric-card">
+                      <div className="muted">Yakit / vites</div>
+                      <strong>
+                        {[listingDraft.fuelType, listingDraft.transmission].filter(Boolean).join(' / ') || '-'}
+                      </strong>
+                    </div>
+                    <div className="metric-card">
+                      <div className="muted">Yetki tipi</div>
+                      <strong>
+                        {relationOptions.find((item) => item.key === listingDraft.sellerRelationType)?.label || 'Belirtilmedi'}
+                      </strong>
+                    </div>
+                  </div>
+                </div>
+                <div className="support-card">
+                  <strong>Yayin karari nasil verilir?</strong>
+                  <p className="muted" style={{ marginBottom: 0 }}>
+                    Dusuk riskli listingler yayina alinabilir. Orta riskli listingler incelemeye dusebilir.
+                    Yuksek riskte ek belge veya odeme dogrulamasi istenebilir.
                   </p>
                 </div>
-                {webFeatureFlags.enablePaidListings ? (
-                  <div className="soft-card" style={{ padding: 16 }}>
-                    <strong>Billing check</strong>
-                    <p className="muted" style={{ margin: '8px 0 0' }}>
-                      {featuredRequested
-                        ? 'Featured listing ucreti gerekirse checkout adimi acilir.'
-                        : 'Standart listing ucreti veya abonelik backend tarafinda kontrol edilir.'}
-                    </p>
-                  </div>
-                ) : null}
-                <p className="muted">Düşük riskte ilan yayına alınır. Orta riskte incelemeye düşer. Yüksek riskte ek doğrulama gerekebilir.</p>
               </div>
             ) : null}
 
-            {mode === 'listing' && getStepError(activeStep) ? (
-              <p style={{ color: '#c2410c', margin: 0 }}>{getStepError(activeStep)}</p>
+            {getStepError(activeStep) ? (
+              <div className="status-banner error">{getStepError(activeStep)}</div>
             ) : null}
           </section>
-        </>
+
+          <div className="post-actions" style={{ justifyContent: 'space-between' }}>
+            <span className="muted">
+              Listing akisi, beyan, billing ve moderation kontrolleriyle birlikte calisir.
+            </span>
+            <div className="post-actions">
+              {currentStepIndex > 0 ? (
+                <button
+                  className="button button-secondary"
+                  onClick={() => setActiveStep(activeSteps[currentStepIndex - 1].key)}
+                  type="button"
+                >
+                  Geri
+                </button>
+              ) : null}
+              {currentStepIndex < activeSteps.length - 1 ? (
+                <button
+                  className="button button-primary"
+                  onClick={() => {
+                    const error = getStepError(activeStep);
+                    if (error) {
+                      setStatus(error, 'error');
+                      return;
+                    }
+                    setStatus(null);
+                    setActiveStep(activeSteps[currentStepIndex + 1].key);
+                  }}
+                  type="button"
+                >
+                  Devam
+                </button>
+              ) : (
+                <button
+                  className="button button-primary"
+                  disabled={submitting || !canCreateListing}
+                  onClick={handleSubmit}
+                  type="button"
+                >
+                  {submitting ? 'Listing isleniyor...' : 'Listingi yayina gonder'}
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
       )}
 
-      {statusMessage ? <p style={{ color: '#0f766e', margin: 0 }}>{statusMessage}</p> : null}
-
-      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
-        <span className="muted">
-          {mode === 'listing'
-            ? canCreateListing
-              ? 'Listing Create Flow v2 güvenli beyan ve risk kontrollü yayın mantığıyla çalışır.'
-              : 'İlan oluşturmak için önce araç profilinizi ekleyin.'
-            : 'Gönderiler aynı sosyal akış mantığıyla yayınlanır.'}
-        </span>
-        <div className="post-actions">
-          {mode === 'listing' && currentStepIndex > 0 ? (
-            <button className="button button-secondary" onClick={() => setActiveStep(activeSteps[currentStepIndex - 1].key)} type="button">
-              Geri
-            </button>
-          ) : null}
-          {mode === 'listing' && currentStepIndex < activeSteps.length - 1 ? (
-            <button
-              className="button button-primary"
-              onClick={() => {
-                const error = getStepError(activeStep);
-                if (error) {
-                  setStatusMessage(error);
-                  return;
-                }
-                setActiveStep(activeSteps[currentStepIndex + 1].key);
-              }}
-              type="button"
-            >
-              İleri
-            </button>
-          ) : (
-            <button className="button button-primary" disabled={submitting || (mode === 'listing' && !canCreateListing)} onClick={handleSubmit}>
-              {submitting ? 'Kaydediliyor...' : mode === 'listing' ? 'Yayın kararını uygula' : 'Gönderiyi yayınla'}
-            </button>
-          )}
+      {statusMessage ? (
+        <div className={`status-banner ${statusTone === 'error' ? 'error' : 'success'}`}>
+          {statusMessage}
         </div>
-      </div>
+      ) : null}
     </section>
   );
 }

@@ -10,37 +10,66 @@ export default function FeedPage() {
 
   return (
     <>
-      <section className="glass-card page-header">
+      <section className="glass-card page-header feed-hero">
         <div>
-          <div className="eyebrow">Sosyal Akış</div>
-          <h1 style={{ margin: '8px 0 6px' }}>Carloi masaüstü feed</h1>
-          <p className="muted" style={{ margin: 0 }}>
-            Geniş medya alanı, listing kartları ve masaüstü için optimize edilmiş üç kolon deneyimi.
+          <div className="eyebrow">Ana akis</div>
+          <h1>Carloi social feed</h1>
+          <p className="muted">
+            Sosyal gonderiler, listing kartlari ve hizli sohbet aksiyonlari ayni akis icinde
+            toplanir.
           </p>
+        </div>
+        <div className="hero-stats">
+          <span className="tag">{snapshot.posts.length} yayin</span>
+          <span className="tag">{snapshot.conversations.length} aktif sohbet</span>
+          <span className="tag">{snapshot.commercial.commercialStatus}</span>
         </div>
       </section>
 
       <ComposerCard />
 
-      {snapshot.posts.map((post) => (
-        <PostCard
-          key={post.id}
-          post={post}
-          actions={
-            <>
-              <button className="button button-secondary" onClick={() => runSnapshotAction(`/api/posts/${post.id}/like`, { method: 'POST' })}>
-                {post.likedByUser ? 'Beğeniden çıkar' : 'Beğen'}
-              </button>
-              <button className="button button-secondary" onClick={() => runSnapshotAction(`/api/posts/${post.id}/save`, { method: 'POST' })}>
-                {post.savedByUser ? 'Kaydı kaldır' : 'Kaydet'}
-              </button>
-              <button className="button button-secondary" onClick={() => runSnapshotAction(`/api/posts/${post.id}/repost`, { method: 'POST' })}>
-                Repost
-              </button>
-            </>
-          }
-        />
-      ))}
+      <div className="stack">
+        {snapshot.posts.length ? (
+          snapshot.posts.map((post) => (
+            <PostCard
+              key={post.id}
+              post={post}
+              actions={
+                <>
+                  <button
+                    className="button button-secondary"
+                    onClick={() => runSnapshotAction(`/api/posts/${post.id}/like`, { method: 'POST' })}
+                    type="button"
+                  >
+                    {post.likedByUser ? 'Begeniyi kaldir' : 'Begen'}
+                  </button>
+                  <button
+                    className="button button-secondary"
+                    onClick={() => runSnapshotAction(`/api/posts/${post.id}/save`, { method: 'POST' })}
+                    type="button"
+                  >
+                    {post.savedByUser ? 'Kaydi kaldir' : 'Kaydet'}
+                  </button>
+                  <button
+                    className="button button-secondary"
+                    onClick={() => runSnapshotAction(`/api/posts/${post.id}/repost`, { method: 'POST' })}
+                    type="button"
+                  >
+                    Paylas
+                  </button>
+                </>
+              }
+            />
+          ))
+        ) : (
+          <section className="empty-state soft-card">
+            <strong>Feed henuz bos.</strong>
+            <p className="muted" style={{ marginBottom: 0 }}>
+              Ilk gonderinizi veya ilk listinginizi yukaridaki composer kartindan paylasabilirsiniz.
+            </p>
+          </section>
+        )}
+      </div>
     </>
   );
 }

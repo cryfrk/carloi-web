@@ -1,6 +1,7 @@
+import { cookies } from 'next/headers';
 import { NextResponse } from 'next/server';
 
-import { backendFetch } from '@/lib/backend';
+import { backendFetch, SESSION_COOKIE } from '@/lib/backend';
 import { toErrorResponse } from '@/lib/route-error';
 
 export async function POST(request: Request) {
@@ -14,7 +15,19 @@ export async function POST(request: Request) {
       body: JSON.stringify(body),
     });
 
-    return NextResponse.json(data);
+    const response = NextResponse.json(data);
+    if (data.token) {
+      const cookieStore = await cookies();
+      cookieStore.set(SESSION_COOKIE, data.token, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'lax',
+        path: '/',
+        maxAge: 60 * 60 * 24 * 30,
+      });
+    }
+
+    return response;
   } catch (error) {
     return toErrorResponse(error);
   }

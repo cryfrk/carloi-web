@@ -2,36 +2,48 @@
 
 export const dynamic = 'force-dynamic';
 
-import { useRouter } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { Suspense, useState } from 'react';
 
 import { AuthShell } from '@/components/auth-shell';
 import { useSession } from '@/providers/session-provider';
 
-export default function ResetPasswordPage() {
+function ResetPasswordPageContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { resetPassword, resetPasswordWithToken } = useSession();
-  const [email, setEmail] = useState('');
-  const [code, setCode] = useState('');
-  const [token, setToken] = useState('');
+  const [email, setEmail] = useState(searchParams.get('email') || '');
+  const [code, setCode] = useState((searchParams.get('code') || '').replace(/\D/g, '').slice(0, 6));
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
-  useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    setEmail(params.get('email') || '');
-    setCode((params.get('code') || '').replace(/\D/g, '').slice(0, 6));
-    setToken(params.get('token') || '');
-  }, []);
+  const token = searchParams.get('token') || '';
+
+  async function handleSubmit() {
+    setLoading(true);
+    setError('');
+    try {
+      if (token) {
+        await resetPasswordWithToken(token, password);
+      } else {
+        await resetPassword(email.trim(), code.trim(), password);
+      }
+      router.push('/feed');
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'Sifre guncellenemedi.');
+    } finally {
+      setLoading(false);
+    }
+  }
 
   return (
     <AuthShell
-      title="Sifreni yenile"
+      title="Yeni sifre belirle"
       subtitle={
         token
-          ? 'Mailindeki guvenli baglanti ile geldin. Yeni sifreni belirlediginde hesabina dogrudan gecis yaparsin.'
-          : 'Eski bir kod akisi kullaniyorsan mailine gelen kodu ve yeni sifreni gir.'
+          ? 'Maildeki guvenli baglanti ile geldiniz. Yeni sifrenizi belirlediginizde hesabiniz acilir.'
+          : 'Eski kod akisini kullaniyorsaniz e-posta, kod ve yeni sifrenizi girin.'
       }
       alternateHref="/login"
       alternateLabel="Giris ekranina don"
@@ -39,41 +51,60 @@ export default function ResetPasswordPage() {
       <div className="stack">
         {!token ? (
           <>
-            <input className="input" placeholder="E-posta" value={email} onChange={(e) => setEmail(e.target.value)} />
-            <input className="input" placeholder="Kod" value={code} onChange={(e) => setCode(e.target.value)} />
+            <label className="stack">
+              <span className="field-label">E-posta adresi</span>
+              <input
+                className="input"
+                placeholder="eposta@ornek.com"
+                value={email}
+                onChange={(event) => setEmail(event.target.value)}
+              />
+            </label>
+            <label className="stack">
+              <span className="field-label">Kod</span>
+              <input
+                className="input"
+                inputMode="numeric"
+                maxLength={6}
+                placeholder="123456"
+                value={code}
+                onChange={(event) => setCode(event.target.value.replace(/\D/g, '').slice(0, 6))}
+              />
+            </label>
           </>
         ) : null}
-        <input
-          className="input"
-          placeholder="Yeni sifre"
-          type="password"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-        />
-        {error ? <div style={{ color: 'var(--danger)' }}>{error}</div> : null}
-        <button
-          className="button button-primary"
-          disabled={loading}
-          onClick={async () => {
-            setError('');
-            setLoading(true);
-            try {
-              if (token) {
-                await resetPasswordWithToken(token, password);
-              } else {
-                await resetPassword(email, code, password);
-              }
-              router.push('/feed');
-            } catch (cause) {
-              setError(cause instanceof Error ? cause.message : 'Sifre guncellenemedi.');
-            } finally {
-              setLoading(false);
-            }
-          }}
-        >
+        <label className="stack">
+          <span className="field-label">Yeni sifre</span>
+          <input
+            className="input"
+            type="password"
+            placeholder="En az 8 karakter"
+            value={password}
+            onChange={(event) => setPassword(event.target.value)}
+          />
+        </label>
+        {error ? <div className="status-banner error">{error}</div> : null}
+        <button className="button button-primary" disabled={loading} onClick={handleSubmit} type="button">
           {loading ? 'Sifre guncelleniyor...' : 'Sifreyi guncelle'}
         </button>
       </div>
     </AuthShell>
+  );
+}
+
+export default function ResetPasswordPage() {
+  return (
+    <Suspense
+      fallback={
+        <AuthShell
+          title="Sifre ekrani hazirlaniyor"
+          subtitle="Guvenli sifre sifirlama akisi yukleniyor."
+        >
+          <div className="stack" />
+        </AuthShell>
+      }
+    >
+      <ResetPasswordPageContent />
+    </Suspense>
   );
 }

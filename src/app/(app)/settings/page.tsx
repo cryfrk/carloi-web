@@ -20,63 +20,79 @@ const settingToggleFields: Array<{
   { label: 'E-posta bildirimleri', key: 'emailNotifications' },
   { label: 'SMS bildirimleri', key: 'smsNotifications' },
   { label: 'Mesaj taleplerine izin ver', key: 'allowMessageRequests' },
-  { label: 'Son gorulmeyi goster', key: 'showLastSeen' },
+  { label: 'Son gorulme bilgisini goster', key: 'showLastSeen' },
   { label: 'Iki adimli dogrulama', key: 'twoFactorEnabled' },
-  { label: 'AI veri paylasimi', key: 'aiDataSharing' },
+  { label: 'Loi AI veri paylasimi', key: 'aiDataSharing' },
   { label: 'Hizli giris', key: 'quickLoginEnabled' },
-  { label: 'Satilan arac sayisini goster', key: 'showSoldCountOnProfile' },
-];
-
-const supportItems = [
-  {
-    title: 'Genel Iletisim',
-    description: 'Urun, marka ve genel iletisim konulari icin.',
-    email: 'info@carloi.com',
-    subject: 'Carloi Genel Iletisim',
-  },
-  {
-    title: 'Destek',
-    description: 'Hesap, giris, ilan, odeme ve teknik yardim talepleri icin.',
-    email: 'destek@carloi.com',
-    subject: 'Carloi Destek Talebi',
-  },
-  {
-    title: 'Is Birligi',
-    description: 'Kurumsal anlasma, partnerlik ve ticari gorusmeler icin.',
-    email: 'business@carloi.com',
-    subject: 'Carloi Is Birligi',
-  },
+  { label: 'Satilan arac sayisini profilde goster', key: 'showSoldCountOnProfile' },
 ];
 
 export default function SettingsPage() {
   const { snapshot, runSnapshotAction } = useSession();
   const [settings, setSettings] = useState(snapshot?.settings);
+  const [statusMessage, setStatusMessage] = useState('');
+  const [error, setError] = useState('');
+
   if (!snapshot || !settings) return null;
 
   const commercial = snapshot.commercial;
+
+  async function handleSave() {
+    setStatusMessage('');
+    setError('');
+    try {
+      const response = await runSnapshotAction('/api/profile/settings', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(settings),
+      });
+      setStatusMessage(response.message || 'Ayarlariniz guncellendi.');
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'Ayarlar kaydedilemedi.');
+    }
+  }
 
   return (
     <>
       <section className="glass-card page-header">
         <div>
           <div className="eyebrow">Ayarlar</div>
-          <h1 style={{ margin: '8px 0 6px' }}>Hesap, guvenlik, gizlilik, destek</h1>
+          <h1>Hesap, guvenlik ve destek</h1>
+          <p className="muted">
+            E-posta ile uye olduysan telefonunu, telefon ile uye olduysan e-posta adresini
+            buradan ekleyebilirsin.
+          </p>
         </div>
       </section>
 
       <section className="glass-card" style={{ padding: 22, display: 'grid', gap: 18 }}>
-        <div className="two-up">
+        <div className="support-grid">
+          <label className="support-card stack">
+            <span className="field-label">E-posta</span>
+            <input
+              className="input"
+              placeholder="eposta@ornek.com"
+              value={settings.email}
+              onChange={(event) => setSettings((current) => ({ ...current!, email: event.target.value }))}
+            />
+          </label>
+          <label className="support-card stack">
+            <span className="field-label">Telefon</span>
+            <input
+              className="input"
+              placeholder="+90 5xx xxx xx xx"
+              value={settings.phone}
+              onChange={(event) => setSettings((current) => ({ ...current!, phone: event.target.value }))}
+            />
+          </label>
+        </div>
+
+        <div className="support-grid">
           {settingToggleFields.map(({ label, key }) => (
-            <label
-              key={key}
-              className="support-card"
-              style={{ display: 'flex', justifyContent: 'space-between', gap: 12 }}
-            >
+            <label key={key} className="support-card toggle-card">
               <div>
                 <strong>{label}</strong>
-                <div className="muted" style={{ marginTop: 6 }}>
-                  Carloi web ve mobil davranisi birlikte guncellenir.
-                </div>
+                <div className="muted">Web ve mobil deneyimi ayni backend kaydi uzerinden guncellenir.</div>
               </div>
               <input
                 type="checkbox"
@@ -88,81 +104,35 @@ export default function SettingsPage() {
             </label>
           ))}
         </div>
-        <button
-          className="button button-primary"
-          onClick={() =>
-            runSnapshotAction('/api/profile/settings', {
-              method: 'PATCH',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify(settings),
-            })
-          }
-        >
-          Ayarlari kaydet
-        </button>
-      </section>
 
-      <section className="glass-card" style={{ padding: 22 }}>
-        <div className="eyebrow">Ticari Hesap</div>
-        <h2 style={{ margin: '10px 0 6px' }}>Commercial onboarding</h2>
-        <p className="muted">
-          {commercial.enabled
-            ? 'Bireysel hesapla devam edebilir veya ticari hesaba gecerek belge yukleme ve platform inceleme surecini baslatabilirsin.'
-            : 'Ticari hesap onboarding ozelligi su anda asamali olarak aciliyor.'}
-        </p>
-        <div className="support-grid" style={{ marginTop: 18 }}>
-          <div className="support-card">
-            <div className="eyebrow">Durum</div>
-            <strong style={{ display: 'block', marginTop: 8 }}>
-              {commercial.commercialStatus === 'not_applied'
-                ? 'Basvuru baslatilmadi'
-                : commercial.commercialStatus}
-            </strong>
-            <p className="muted" style={{ marginBottom: 0 }}>
-              {commercial.canUseCommercialListingFeatures
-                ? 'Ticari listing yetkileri platform incelemesiyle acildi.'
-                : 'Ek dogrulama gerekebilir. Ticari ayricaliklar yalnizca platform inceleme onayi sonrasinda acilir.'}
-            </p>
-          </div>
-          <div className="support-card">
-            <div className="eyebrow">Belge seti</div>
-            <strong style={{ display: 'block', marginTop: 8 }}>
-              {commercial.minimumDocumentSet.hasMinimumSet ? 'Hazir' : 'Eksik belge var'}
-            </strong>
-            <p className="muted" style={{ marginBottom: 0 }}>
-              Vergi belgesi ve yetki belgeleri bir kez yuklenir, sonrasi artimsal guncelleme ile ilerler.
-            </p>
-          </div>
+        <div className="post-actions">
+          <button className="button button-primary" onClick={handleSave} type="button">
+            Ayarlari kaydet
+          </button>
+          <Link className="button button-secondary" href="/settings/commercial">
+            Ticari hesap alani
+          </Link>
         </div>
-        <Link
-          className="button button-primary"
-          href="/settings/commercial"
-          style={{ display: 'inline-flex', marginTop: 18 }}
-        >
-          Ticari hesap ekranini ac
-        </Link>
+
+        {statusMessage ? <div className="status-banner success">{statusMessage}</div> : null}
+        {error ? <div className="status-banner error">{error}</div> : null}
       </section>
 
       <section className="glass-card" style={{ padding: 22 }}>
-        <div className="eyebrow">Destek ve Iletisim</div>
-        <h2 style={{ margin: '10px 0 6px' }}>Carloi Care</h2>
-        <p className="muted">
-          Sorun, onerı veya is birligi talepleriniz icin bizimle iletisime gecin.
-        </p>
-        <div className="support-grid" style={{ marginTop: 18 }}>
-          {supportItems.map((item) => (
-            <a
-              key={item.email}
-              className="support-card"
-              href={`mailto:${item.email}?subject=${encodeURIComponent(item.subject)}`}
-            >
-              <div className="eyebrow">{item.title}</div>
-              <strong style={{ display: 'block', marginTop: 8 }}>{item.email}</strong>
-              <p className="muted" style={{ marginBottom: 0 }}>
-                {item.description}
-              </p>
-            </a>
-          ))}
+        <div className="eyebrow">Ticari hesap</div>
+        <div className="support-grid" style={{ marginTop: 14 }}>
+          <div className="support-card">
+            <strong>Durum</strong>
+            <p className="muted" style={{ marginBottom: 0 }}>
+              {commercial.commercialStatus}
+            </p>
+          </div>
+          <div className="support-card">
+            <strong>Belge seti</strong>
+            <p className="muted" style={{ marginBottom: 0 }}>
+              {commercial.minimumDocumentSet.hasMinimumSet ? 'Hazir' : 'Eksik belge var'}
+            </p>
+          </div>
         </div>
       </section>
     </>

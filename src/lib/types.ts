@@ -551,11 +551,15 @@ export interface BackendResponse<T = unknown> {
   followers?: SearchResultUser[];
   following?: SearchResultUser[];
   email?: string;
+  phone?: string;
   expiresAt?: string;
   maskedDestination?: string;
+  verificationChannel?: 'email' | 'phone';
   deliveryFailed?: boolean;
   emailDisabled?: boolean;
   emailNotConfigured?: boolean;
+  smsDisabled?: boolean;
+  smsNotConfigured?: boolean;
   provider?: string;
   relatedPostIds?: string[];
   url?: string;

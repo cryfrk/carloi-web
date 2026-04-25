@@ -10,6 +10,7 @@ import {
 } from 'react';
 
 import { requestAuth, requestAuthGet, requestProxy, requestSession } from '@/lib/client-api';
+import { normalizeAppSnapshot } from '@/lib/normalize-snapshot';
 import type { AppSnapshot, BackendResponse, MessageAttachment } from '@/lib/types';
 
 interface SessionContextValue {
@@ -23,7 +24,12 @@ interface SessionContextValue {
     handle: string;
     bio: string;
     email: string;
+    phone?: string;
     password: string;
+    primaryChannel?: 'email' | 'phone';
+    signupVerification?: {
+      code: string;
+    };
     accountType?: 'individual' | 'commercial';
     consents?: Array<{
       type: 'terms_of_service' | 'privacy_policy' | 'content_responsibility' | 'marketing_optional';
@@ -36,6 +42,10 @@ interface SessionContextValue {
       taxOrIdentityType?: 'VKN' | 'TCKN';
       taxOrIdentityNumber?: string;
     };
+  }) => Promise<BackendResponse>;
+  startVerification: (payload: {
+    channel: 'email' | 'phone';
+    destination: string;
   }) => Promise<BackendResponse>;
   verifyEmailToken: (token: string) => Promise<BackendResponse>;
   verifyEmail: (email: string, code: string) => Promise<BackendResponse>;
@@ -56,16 +66,16 @@ export function SessionProvider({
   children: ReactNode;
   initialSnapshot: AppSnapshot | null;
 }) {
-  const [snapshot, setSnapshot] = useState<AppSnapshot | null>(initialSnapshot);
+  const [snapshot, setSnapshot] = useState<AppSnapshot | null>(normalizeAppSnapshot(initialSnapshot));
 
   const refresh = useCallback(async () => {
     const nextSnapshot = await requestSession();
-    setSnapshot(nextSnapshot);
+    setSnapshot(normalizeAppSnapshot(nextSnapshot));
   }, []);
 
   const syncSnapshot = useCallback((response: BackendResponse) => {
     if (response.snapshot) {
-      setSnapshot(response.snapshot);
+      setSnapshot(normalizeAppSnapshot(response.snapshot));
     }
     return response;
   }, []);
@@ -87,7 +97,12 @@ export function SessionProvider({
       handle: string;
       bio: string;
       email: string;
+      phone?: string;
       password: string;
+      primaryChannel?: 'email' | 'phone';
+      signupVerification?: {
+        code: string;
+      };
       accountType?: 'individual' | 'commercial';
       consents?: Array<{
         type: 'terms_of_service' | 'privacy_policy' | 'content_responsibility' | 'marketing_optional';
@@ -100,8 +115,13 @@ export function SessionProvider({
         taxOrIdentityType?: 'VKN' | 'TCKN';
         taxOrIdentityNumber?: string;
       };
-    }) =>
-      requestAuth<BackendResponse>('/api/auth/register', payload),
+    }) => syncSnapshot(await requestAuth<BackendResponse>('/api/auth/register', payload)),
+    [syncSnapshot],
+  );
+
+  const startVerification = useCallback(
+    async (payload: { channel: 'email' | 'phone'; destination: string }) =>
+      requestAuth<BackendResponse>('/api/auth/verification/start', payload),
     [],
   );
 
@@ -184,6 +204,7 @@ export function SessionProvider({
       logout,
       login,
       register,
+      startVerification,
       verifyEmailToken,
       verifyEmail,
       resendVerificationCode,
@@ -199,6 +220,7 @@ export function SessionProvider({
       logout,
       login,
       register,
+      startVerification,
       verifyEmailToken,
       verifyEmail,
       resendVerificationCode,

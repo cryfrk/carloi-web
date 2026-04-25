@@ -1,6 +1,7 @@
 'use client';
 
 import type { AppSnapshot, BackendResponse } from '@/lib/types';
+import { normalizeAppSnapshot } from '@/lib/normalize-snapshot';
 
 const CLIENT_REQUEST_TIMEOUT_MS = 30000;
 
@@ -111,5 +112,5 @@ export async function requestSession() {
   }
 
   const data = await parseResponse<BackendResponse<AppSnapshot>>(response);
-  return data.snapshot || null;
+  return normalizeAppSnapshot(data.snapshot);
 }

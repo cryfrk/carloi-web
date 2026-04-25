@@ -1,7 +1,7 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 
 import { AuthShell } from '@/components/auth-shell';
 import {
@@ -13,17 +13,47 @@ import { useSession } from '@/providers/session-provider';
 
 const signupConsentItems = Object.keys(signupConsentDocuments) as SignupConsentKey[];
 
+type RegisterStep = 'account_type' | 'identity' | 'details' | 'verification';
+type AccountType = 'individual' | 'commercial';
+type PrimaryChannel = 'email' | 'phone';
+
+const stepMeta: Array<{ key: RegisterStep; title: string; helper: string }> = [
+  {
+    key: 'account_type',
+    title: 'Hesap tipi',
+    helper: 'Bireysel mi yoksa ticari hesapla mi ilerleyecegini sec.',
+  },
+  {
+    key: 'identity',
+    title: 'Ana kimlik',
+    helper: 'Hesabinin temel giris bilgisini e-posta veya telefon olarak belirle.',
+  },
+  {
+    key: 'details',
+    title: 'Temel bilgiler',
+    helper: 'Profil bilgilerini ve guvenli sifreni tamamla.',
+  },
+  {
+    key: 'verification',
+    title: 'Dogrulama',
+    helper: 'Secilen kanala gore son guvenlik adimini tamamla.',
+  },
+];
+
 export default function RegisterPage() {
   const router = useRouter();
-  const { register } = useSession();
+  const { register, startVerification } = useSession();
+  const [step, setStep] = useState<RegisterStep>('account_type');
+  const [accountType, setAccountType] = useState<AccountType>('individual');
+  const [primaryChannel, setPrimaryChannel] = useState<PrimaryChannel>('email');
   const [form, setForm] = useState({
     name: '',
     handle: '',
     bio: '',
     email: '',
+    phone: '',
     password: '',
   });
-  const [accountType, setAccountType] = useState<'individual' | 'commercial'>('individual');
   const [commercialProfile, setCommercialProfile] = useState({
     companyName: '',
     taxOrIdentityType: 'VKN' as 'VKN' | 'TCKN',
@@ -35,36 +65,141 @@ export default function RegisterPage() {
     content_responsibility: false,
     marketing_optional: false,
   });
-  const [error, setError] = useState('');
-  const [loading, setLoading] = useState(false);
   const [activeConsent, setActiveConsent] = useState<SignupConsentKey | null>(null);
+  const [phoneCode, setPhoneCode] = useState('');
+  const [phoneCodeSent, setPhoneCodeSent] = useState(false);
+  const [maskedDestination, setMaskedDestination] = useState('');
+  const [verificationMessage, setVerificationMessage] = useState('');
+  const [status, setStatus] = useState('');
+  const [error, setError] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [sendingCode, setSendingCode] = useState(false);
+
   const activeConsentDocument = activeConsent ? signupConsentDocuments[activeConsent] : null;
+  const currentStepIndex = stepMeta.findIndex((item) => item.key === step);
+  const requiredContact = primaryChannel === 'phone' ? form.phone.trim() : form.email.trim();
+
+  const canContinueFromDetails = useMemo(() => {
+    if (!form.name.trim() || !form.handle.trim() || !form.password.trim()) {
+      return false;
+    }
+
+    if (primaryChannel === 'email' && !form.email.trim()) {
+      return false;
+    }
+
+    if (primaryChannel === 'phone' && !form.phone.trim()) {
+      return false;
+    }
+
+    if (
+      accountType === 'commercial' &&
+      (!commercialProfile.companyName.trim() || !commercialProfile.taxOrIdentityNumber.trim())
+    ) {
+      return false;
+    }
+
+    return true;
+  }, [accountType, commercialProfile, form, primaryChannel]);
+
+  function moveToNextStep() {
+    setError('');
+    setStatus('');
+
+    if (step === 'account_type') {
+      setStep('identity');
+      return;
+    }
+
+    if (step === 'identity') {
+      setStep('details');
+      return;
+    }
+
+    if (step === 'details') {
+      if (!canContinueFromDetails) {
+        setError('Lutfen devam etmeden once zorunlu alanlari tamamlayin.');
+        return;
+      }
+      setStep('verification');
+    }
+  }
+
+  function moveToPreviousStep() {
+    setError('');
+    setStatus('');
+
+    if (step === 'verification') {
+      setStep('details');
+      return;
+    }
+
+    if (step === 'details') {
+      setStep('identity');
+      return;
+    }
+
+    if (step === 'identity') {
+      setStep('account_type');
+    }
+  }
+
+  async function handleSendPhoneCode() {
+    if (!form.phone.trim()) {
+      setError('SMS kodu gonderebilmek icin once telefon numarasi girin.');
+      return;
+    }
+
+    setSendingCode(true);
+    setError('');
+    setStatus('');
+    try {
+      const result = await startVerification({
+        channel: 'phone',
+        destination: form.phone.trim(),
+      });
+
+      setPhoneCodeSent(true);
+      setMaskedDestination(result.maskedDestination || form.phone.trim());
+      setVerificationMessage(result.message || 'SMS dogrulama kodu gonderildi.');
+      setStatus(result.message || 'SMS dogrulama kodu gonderildi.');
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'SMS dogrulama kodu gonderilemedi.');
+    } finally {
+      setSendingCode(false);
+    }
+  }
 
   async function handleSubmit() {
-    setLoading(true);
     setError('');
+    setStatus('');
+
+    if (!consents.terms_of_service || !consents.privacy_policy || !consents.content_responsibility) {
+      setError('Kaydi tamamlamak icin zorunlu sozlesmeleri kabul etmelisiniz.');
+      return;
+    }
+
+    if (form.password.trim().length < 8) {
+      setError('Sifre en az 8 karakter olmalidir.');
+      return;
+    }
+
+    if (primaryChannel === 'phone' && !phoneCode.trim()) {
+      setError('Telefon ile kayit icin SMS kodunu girmelisiniz.');
+      return;
+    }
+
+    setSubmitting(true);
     try {
-      if (
-        !consents.terms_of_service ||
-        !consents.privacy_policy ||
-        !consents.content_responsibility
-      ) {
-        setError('Kaydi tamamlamak icin zorunlu onay kutularini isaretlemelisin.');
-        setLoading(false);
-        return;
-      }
-
-      if (
-        accountType === 'commercial' &&
-        (!commercialProfile.companyName.trim() || !commercialProfile.taxOrIdentityNumber.trim())
-      ) {
-        setError('Ticari kayit icin sirket adi ve VKN/TCKN zorunludur.');
-        setLoading(false);
-        return;
-      }
-
       const result = await register({
-        ...form,
+        name: form.name.trim(),
+        handle: form.handle.trim(),
+        bio: form.bio.trim(),
+        email: form.email.trim(),
+        phone: form.phone.trim(),
+        password: form.password.trim(),
+        primaryChannel,
+        signupVerification: primaryChannel === 'phone' ? { code: phoneCode.trim() } : undefined,
         accountType,
         consents: [
           {
@@ -105,9 +240,16 @@ export default function RegisterPage() {
               }
             : undefined,
       });
-      const params = new URLSearchParams({
-        email: result.email || form.email,
-      });
+
+      if (result.snapshot && result.verificationChannel === 'phone') {
+        router.push(accountType === 'commercial' ? '/settings/commercial' : '/feed');
+        return;
+      }
+
+      const params = new URLSearchParams();
+      if (result.email || form.email.trim()) {
+        params.set('email', result.email || form.email.trim());
+      }
       if (result.message) {
         params.set('message', result.message);
       }
@@ -125,187 +267,328 @@ export default function RegisterPage() {
       }
       router.push(`/verify-email?${params.toString()}`);
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : 'Kayit olunamadi.');
+      setError(cause instanceof Error ? cause.message : 'Kayit islemi tamamlanamadi.');
     } finally {
-      setLoading(false);
+      setSubmitting(false);
     }
   }
 
   return (
     <AuthShell
-      title="Carloi hesabi olustur"
-      subtitle="Tek hesapla mobil ve web surumunde ayni sosyal akisa, ilanlara ve Loi AI alanina eris."
+      title="Carloi hesabini olustur"
+      subtitle="Tek bir hesapla feed, ilanlar, mesajlar, ticari onboarding ve guvenli odeme akislari web ile mobilde ayni sekilde senkron calissin."
       alternateHref="/login"
       alternateLabel="Zaten hesabin var mi? Giris yap."
     >
-      <div className="stack">
-        <input
-          className="input"
-          placeholder="Ad soyad"
-          value={form.name}
-          onChange={(e) => setForm((current) => ({ ...current, name: e.target.value }))}
-        />
-        <input
-          className="input"
-          placeholder="@kullaniciadi"
-          value={form.handle}
-          onChange={(e) => setForm((current) => ({ ...current, handle: e.target.value }))}
-        />
-        <textarea
-          className="textarea"
-          placeholder="Kisa profil aciklamasi"
-          value={form.bio}
-          onChange={(e) => setForm((current) => ({ ...current, bio: e.target.value }))}
-        />
-        <input
-          className="input"
-          placeholder="E-posta"
-          value={form.email}
-          onChange={(e) => setForm((current) => ({ ...current, email: e.target.value }))}
-        />
-        <input
-          className="input"
-          placeholder="Sifre"
-          type="password"
-          value={form.password}
-          onChange={(e) => setForm((current) => ({ ...current, password: e.target.value }))}
-        />
-        <div className="support-grid">
-          <button
-            className={`button ${accountType === 'individual' ? 'button-primary' : 'button-secondary'}`}
-            onClick={() => setAccountType('individual')}
-            type="button"
+      <div className="auth-step-list">
+        {stepMeta.map((item, index) => (
+          <div
+            key={item.key}
+            className={`auth-step-chip ${index <= currentStepIndex ? 'active' : ''}`}
           >
-            Bireysel hesap
-          </button>
-          <button
-            className={`button ${accountType === 'commercial' ? 'button-primary' : 'button-secondary'}`}
-            onClick={() => setAccountType('commercial')}
-            type="button"
-          >
-            Ticari hesap baslat
-          </button>
-        </div>
-        {accountType === 'commercial' ? (
-          <>
-            <input
-              className="input"
-              placeholder="Sirket / isletme adi"
-              value={commercialProfile.companyName}
-              onChange={(e) =>
-                setCommercialProfile((current) => ({ ...current, companyName: e.target.value }))
-              }
-            />
-            <div className="support-grid">
-              <button
-                className={`button ${commercialProfile.taxOrIdentityType === 'VKN' ? 'button-primary' : 'button-secondary'}`}
-                onClick={() =>
-                  setCommercialProfile((current) => ({ ...current, taxOrIdentityType: 'VKN' }))
-                }
-                type="button"
-              >
-                VKN
-              </button>
-              <button
-                className={`button ${commercialProfile.taxOrIdentityType === 'TCKN' ? 'button-primary' : 'button-secondary'}`}
-                onClick={() =>
-                  setCommercialProfile((current) => ({ ...current, taxOrIdentityType: 'TCKN' }))
-                }
-                type="button"
-              >
-                TCKN
-              </button>
+            <span>{index + 1}</span>
+            <div>
+              <strong>{item.title}</strong>
+              <small>{item.helper}</small>
             </div>
-            <input
-              className="input"
-              placeholder={`${commercialProfile.taxOrIdentityType} numarasi`}
-              value={commercialProfile.taxOrIdentityNumber}
-              onChange={(e) =>
-                setCommercialProfile((current) => ({
-                  ...current,
-                  taxOrIdentityNumber: e.target.value,
-                }))
-              }
-            />
-            <div className="muted">
-              E-posta dogrulamasindan sonra belge yukleme ekranina yonlendirilirsin. Basvuru platform incelemesine alinmadan ilan yayinlayamazsin.
-            </div>
-          </>
-        ) : null}
-        <div className="stack" style={{ gap: '0.75rem' }}>
-          {signupConsentItems.map((key) => {
-            const item = signupConsentDocuments[key];
+          </div>
+        ))}
+      </div>
 
-            return (
-              <div
-                key={key}
-                style={{
-                  display: 'flex',
-                  gap: '0.75rem',
-                  alignItems: 'flex-start',
-                  fontSize: '0.95rem',
-                  lineHeight: 1.5,
-                }}
-              >
-                <input
-                  type="checkbox"
-                  checked={consents[key]}
-                  onChange={(event) =>
-                    setConsents((current) => ({
-                      ...current,
-                      [key]: event.target.checked,
-                    }))
-                  }
-                  aria-label={item.checkboxLabel}
-                />
-                <div style={{ display: 'grid', gap: '0.35rem', flex: 1 }}>
-                  <button
-                    type="button"
-                    onClick={() => setActiveConsent(key)}
-                    style={{
-                      padding: 0,
-                      border: 'none',
-                      background: 'none',
-                      color: 'var(--text)',
-                      fontSize: '0.95rem',
-                      fontWeight: 700,
-                      textAlign: 'left',
-                      textDecoration: 'underline',
-                      cursor: 'pointer',
-                    }}
-                  >
-                    {item.checkboxLabel}
-                    {item.required ? ' *' : ''}
-                  </button>
-                  <span className="muted" style={{ fontSize: '0.85rem' }}>
-                    {item.helperText}
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => setActiveConsent(key)}
-                    style={{
-                      padding: 0,
-                      border: 'none',
-                      background: 'none',
-                      color: 'var(--accent)',
-                      fontSize: '0.85rem',
-                      fontWeight: 700,
-                      textAlign: 'left',
-                      textDecoration: 'underline',
-                      cursor: 'pointer',
-                    }}
-                  >
-                    {item.linkLabel}
-                  </button>
-                </div>
-              </div>
-            );
-          })}
+      {step === 'account_type' ? (
+        <div className="stack">
+          <div className="choice-grid">
+            <button
+              className={`choice-card ${accountType === 'individual' ? 'active' : ''}`}
+              onClick={() => setAccountType('individual')}
+              type="button"
+            >
+              <div className="eyebrow">Bireysel kullanici</div>
+              <strong>Hizli kayit, sosyal feed ve ilan deneyimi</strong>
+              <p className="muted">
+                Arac paylasimi, mesajlasma ve sosyal akisa hemen katilin.
+              </p>
+            </button>
+            <button
+              className={`choice-card ${accountType === 'commercial' ? 'active' : ''}`}
+              onClick={() => setAccountType('commercial')}
+              type="button"
+            >
+              <div className="eyebrow">Ticari kullanici</div>
+              <strong>Belge yukleme ve platform incelemesi ile ilerler</strong>
+              <p className="muted">
+                Sirket bilgileriyle kaydolun, dogrulama sonrasi ticari ilan yetkileri acilsin.
+              </p>
+            </button>
+          </div>
         </div>
-        {error ? <div style={{ color: 'var(--danger)' }}>{error}</div> : null}
-        <button className="button button-primary" onClick={handleSubmit} disabled={loading}>
-          {loading ? 'Hesap olusturuluyor...' : 'Hesap olustur'}
-        </button>
+      ) : null}
+
+      {step === 'identity' ? (
+        <div className="stack">
+          <div className="choice-grid">
+            <button
+              className={`choice-card ${primaryChannel === 'email' ? 'active' : ''}`}
+              onClick={() => setPrimaryChannel('email')}
+              type="button"
+            >
+              <div className="eyebrow">E-posta ile kayit</div>
+              <strong>Dogrulama baglantisi mail adresine gider</strong>
+              <p className="muted">
+                Produksiyonda dogrulama linki www.carloi.com alanina yonlenir.
+              </p>
+            </button>
+            <button
+              className={`choice-card ${primaryChannel === 'phone' ? 'active' : ''}`}
+              onClick={() => setPrimaryChannel('phone')}
+              type="button"
+            >
+              <div className="eyebrow">Telefon ile kayit</div>
+              <strong>5 dakika gecerli SMS kodu ile tamamlanir</strong>
+              <p className="muted">
+                Telefon ana giris kimliginiz olur; e-postayi sonradan ayarlardan ekleyebilirsiniz.
+              </p>
+            </button>
+          </div>
+        </div>
+      ) : null}
+
+      {step === 'details' ? (
+        <div className="stack">
+          <div className="form-grid">
+            <label className="stack">
+              <span className="field-label">Ad soyad</span>
+              <input
+                className="input"
+                placeholder="Ad soyad"
+                value={form.name}
+                onChange={(event) => setForm((current) => ({ ...current, name: event.target.value }))}
+              />
+            </label>
+            <label className="stack">
+              <span className="field-label">Kullanici adi</span>
+              <input
+                className="input"
+                placeholder="@kullaniciadi"
+                value={form.handle}
+                onChange={(event) => setForm((current) => ({ ...current, handle: event.target.value }))}
+              />
+            </label>
+            <label className="stack">
+              <span className="field-label">{primaryChannel === 'phone' ? 'Telefon' : 'E-posta'}</span>
+              <input
+                className="input"
+                placeholder={primaryChannel === 'phone' ? '+90 5xx xxx xx xx' : 'eposta@ornek.com'}
+                value={primaryChannel === 'phone' ? form.phone : form.email}
+                onChange={(event) =>
+                  setForm((current) => ({
+                    ...current,
+                    [primaryChannel === 'phone' ? 'phone' : 'email']: event.target.value,
+                  }))
+                }
+              />
+            </label>
+            <label className="stack">
+              <span className="field-label">Sifre</span>
+              <input
+                className="input"
+                placeholder="En az 8 karakter"
+                type="password"
+                value={form.password}
+                onChange={(event) => setForm((current) => ({ ...current, password: event.target.value }))}
+              />
+            </label>
+          </div>
+
+          <label className="stack">
+            <span className="field-label">Kisa profil aciklamasi</span>
+            <textarea
+              className="textarea"
+              placeholder="Arac ilgini, kullanim tarzinizi veya profil notunu kisaca yaz."
+              value={form.bio}
+              onChange={(event) => setForm((current) => ({ ...current, bio: event.target.value }))}
+            />
+          </label>
+
+          {accountType === 'commercial' ? (
+            <section className="soft-card wizard-panel">
+              <div className="eyebrow">Ticari hesap bilgileri</div>
+              <div className="form-grid" style={{ marginTop: 14 }}>
+                <label className="stack">
+                  <span className="field-label">Sirket / isletme adi</span>
+                  <input
+                    className="input"
+                    placeholder="Carloi Otomotiv"
+                    value={commercialProfile.companyName}
+                    onChange={(event) =>
+                      setCommercialProfile((current) => ({
+                        ...current,
+                        companyName: event.target.value,
+                      }))
+                    }
+                  />
+                </label>
+                <label className="stack">
+                  <span className="field-label">Vergi tipi</span>
+                  <select
+                    className="input"
+                    value={commercialProfile.taxOrIdentityType}
+                    onChange={(event) =>
+                      setCommercialProfile((current) => ({
+                        ...current,
+                        taxOrIdentityType: event.target.value as 'VKN' | 'TCKN',
+                      }))
+                    }
+                  >
+                    <option value="VKN">VKN</option>
+                    <option value="TCKN">TCKN</option>
+                  </select>
+                </label>
+                <label className="stack">
+                  <span className="field-label">Vergi no / TCKN</span>
+                  <input
+                    className="input"
+                    placeholder={commercialProfile.taxOrIdentityType}
+                    value={commercialProfile.taxOrIdentityNumber}
+                    onChange={(event) =>
+                      setCommercialProfile((current) => ({
+                        ...current,
+                        taxOrIdentityNumber: event.target.value,
+                      }))
+                    }
+                  />
+                </label>
+              </div>
+              <p className="muted" style={{ marginBottom: 0 }}>
+                Belge yukleme ve inceleme sureci, hesap dogrulandiktan sonra ticari ayarlar ekraninda devam eder.
+              </p>
+            </section>
+          ) : null}
+        </div>
+      ) : null}
+
+      {step === 'verification' ? (
+        <div className="stack">
+          <section className="soft-card wizard-panel">
+            <div className="eyebrow">Kayit ozeti</div>
+            <div className="support-grid" style={{ marginTop: 14 }}>
+              <div className="support-card">
+                <div className="eyebrow">Hesap</div>
+                <strong>{accountType === 'commercial' ? 'Ticari' : 'Bireysel'}</strong>
+                <p className="muted" style={{ marginBottom: 0 }}>
+                  Ana kimlik: {primaryChannel === 'phone' ? 'Telefon' : 'E-posta'}
+                </p>
+              </div>
+              <div className="support-card">
+                <div className="eyebrow">Hedef</div>
+                <strong>{requiredContact || 'Belirtilmedi'}</strong>
+                <p className="muted" style={{ marginBottom: 0 }}>
+                  Kayit ve guvenlik bildirimleri bu kanal uzerinden ilerler.
+                </p>
+              </div>
+            </div>
+          </section>
+
+          {primaryChannel === 'phone' ? (
+            <section className="soft-card wizard-panel">
+              <div className="eyebrow">SMS dogrulamasi</div>
+              <div className="stack" style={{ marginTop: 14 }}>
+                <p className="muted" style={{ margin: 0 }}>
+                  Telefon numaraniza 6 haneli bir Carloi kodu gonderelim, ardindan hesabi dogrudan aktif edelim.
+                </p>
+                <div className="post-actions">
+                  <button
+                    className="button button-secondary"
+                    disabled={sendingCode}
+                    onClick={handleSendPhoneCode}
+                    type="button"
+                  >
+                    {sendingCode ? 'Kod gonderiliyor...' : phoneCodeSent ? 'Kodu tekrar gonder' : 'SMS kodu gonder'}
+                  </button>
+                  {maskedDestination ? <span className="tag">{maskedDestination}</span> : null}
+                </div>
+                <label className="stack">
+                  <span className="field-label">SMS kodu</span>
+                  <input
+                    className="input"
+                    placeholder="123456"
+                    inputMode="numeric"
+                    maxLength={6}
+                    value={phoneCode}
+                    onChange={(event) => setPhoneCode(event.target.value.replace(/\D/g, '').slice(0, 6))}
+                  />
+                </label>
+                {verificationMessage ? <div className="muted">{verificationMessage}</div> : null}
+              </div>
+            </section>
+          ) : (
+            <section className="soft-card wizard-panel">
+              <div className="eyebrow">E-posta dogrulamasi</div>
+              <p className="muted" style={{ margin: 0 }}>
+                Kaydi tamamladiginiz anda hesap olusturulur ve dogrulama baglantisi <strong>{form.email.trim()}</strong>{' '}
+                adresine gonderilir. Link her zaman <strong>www.carloi.com</strong> alaninda acilir.
+              </p>
+            </section>
+          )}
+
+          <section className="soft-card wizard-panel">
+            <div className="eyebrow">Sozlesmeler</div>
+            <div className="stack" style={{ marginTop: 14 }}>
+              {signupConsentItems.map((key) => {
+                const item = signupConsentDocuments[key];
+                return (
+                  <label key={key} className="consent-row">
+                    <input
+                      type="checkbox"
+                      checked={consents[key]}
+                      onChange={(event) =>
+                        setConsents((current) => ({
+                          ...current,
+                          [key]: event.target.checked,
+                        }))
+                      }
+                    />
+                    <div>
+                      <button
+                        type="button"
+                        className="consent-link"
+                        onClick={() => setActiveConsent(key)}
+                      >
+                        {item.checkboxLabel}
+                        {item.required ? ' *' : ''}
+                      </button>
+                      <div className="muted">{item.helperText}</div>
+                    </div>
+                  </label>
+                );
+              })}
+            </div>
+          </section>
+        </div>
+      ) : null}
+
+      {status ? <div className="status-banner success">{status}</div> : null}
+      {error ? <div className="status-banner error">{error}</div> : null}
+
+      <div className="post-actions" style={{ marginTop: 18 }}>
+        {step !== 'account_type' ? (
+          <button className="button button-secondary" onClick={moveToPreviousStep} type="button">
+            Geri
+          </button>
+        ) : null}
+        {step !== 'verification' ? (
+          <button className="button button-primary" onClick={moveToNextStep} type="button">
+            Devam et
+          </button>
+        ) : (
+          <button className="button button-primary" disabled={submitting} onClick={handleSubmit} type="button">
+            {submitting
+              ? 'Kayit tamamlanıyor...'
+              : primaryChannel === 'phone'
+                ? 'Hesabi olustur ve SMS ile dogrula'
+                : 'Hesabi olustur ve baglanti gonder'}
+          </button>
+        )}
       </div>
 
       {activeConsentDocument ? (
@@ -313,113 +596,30 @@ export default function RegisterPage() {
           aria-labelledby="register-consent-title"
           aria-modal="true"
           role="dialog"
-          style={{
-            position: 'fixed',
-            inset: 0,
-            background: 'rgba(16, 24, 32, 0.42)',
-            display: 'grid',
-            placeItems: 'center',
-            padding: '1.5rem',
-            zIndex: 50,
-          }}
+          className="consent-modal"
         >
           <button
             aria-label="Sozlesme penceresini kapat"
             onClick={() => setActiveConsent(null)}
-            style={{
-              position: 'absolute',
-              inset: 0,
-              border: 'none',
-              background: 'transparent',
-              cursor: 'pointer',
-            }}
+            className="consent-modal-overlay"
             type="button"
           />
-          <div
-            style={{
-              position: 'relative',
-              width: 'min(100%, 42rem)',
-              maxHeight: '80vh',
-              overflow: 'auto',
-              borderRadius: '1.5rem',
-              background: 'var(--surface-strong)',
-              border: '1px solid var(--line)',
-              padding: '1.5rem',
-              display: 'grid',
-              gap: '1rem',
-              boxShadow: '0 24px 60px rgba(16, 24, 32, 0.16)',
-            }}
-          >
-            <div
-              style={{
-                display: 'flex',
-                gap: '1rem',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-              }}
-            >
-              <h2
-                id="register-consent-title"
-                style={{ margin: 0, fontSize: '1.15rem', fontWeight: 800 }}
-              >
-                {activeConsentDocument.title}
-              </h2>
-              <button
-                className="button button-secondary"
-                onClick={() => setActiveConsent(null)}
-                type="button"
-              >
+          <div className="consent-modal-card">
+            <div className="consent-modal-header">
+              <h2 id="register-consent-title">{activeConsentDocument.title}</h2>
+              <button className="button button-secondary" onClick={() => setActiveConsent(null)} type="button">
                 Kapat
               </button>
             </div>
-            <div style={{ display: 'grid', gap: '1rem' }}>
-              <div
-                className="muted"
-                style={{
-                  fontSize: '0.82rem',
-                  fontWeight: 700,
-                }}
-              >
-                Versiyon {activeConsentDocument.version} • Son güncelleme{' '}
-                {activeConsentDocument.lastUpdated}
+            <div className="stack">
+              <div className="muted">
+                Versiyon {activeConsentDocument.version} • Son guncelleme {activeConsentDocument.lastUpdated}
               </div>
-              <div
-                style={{
-                  color: 'var(--accent)',
-                  lineHeight: 1.65,
-                  fontSize: '0.92rem',
-                }}
-              >
-                {activeConsentDocument.legalDraftNotice}
-              </div>
+              <div className="status-banner warning">{activeConsentDocument.legalDraftNotice}</div>
               {activeConsentDocument.sections.map((section) => (
-                <section
-                  key={section.heading}
-                  style={{
-                    display: 'grid',
-                    gap: '0.6rem',
-                  }}
-                >
-                  <h3
-                    style={{
-                      margin: 0,
-                      color: 'var(--text)',
-                      fontSize: '1rem',
-                      fontWeight: 800,
-                    }}
-                  >
-                    {section.heading}
-                  </h3>
-                  <ul
-                    style={{
-                      margin: 0,
-                      paddingLeft: '1.15rem',
-                      display: 'grid',
-                      gap: '0.55rem',
-                      color: 'var(--text)',
-                      lineHeight: 1.65,
-                    }}
-                  >
+                <section key={section.heading} className="stack" style={{ gap: 10 }}>
+                  <h3 style={{ margin: 0 }}>{section.heading}</h3>
+                  <ul className="admin-bullet-list">
                     {section.bullets.map((bullet) => (
                       <li key={bullet}>{bullet}</li>
                     ))}

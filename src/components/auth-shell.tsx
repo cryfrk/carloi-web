@@ -3,6 +3,24 @@ import Link from 'next/link';
 
 import { webEnv } from '@/lib/env';
 
+const trustItems = [
+  {
+    title: 'Tek backend, tek oturum',
+    detail:
+      'www.carloi.com ve mobil uygulama ayni API kaynagini kullanir. Kayit, giris, ilan ve mesajlasma ayni hesapta senkron kalir.',
+  },
+  {
+    title: 'Dogrulama kontrollu',
+    detail:
+      'E-posta linkleri web alanina, SMS kodlari ise zaman sinirli dogrulama akisina gider. Kullanici teknik hata yerine anlasilir durum mesajlari gorur.',
+  },
+  {
+    title: 'Ticari onboarding hazir',
+    detail:
+      'Sirket bilgisi, belge yukleme ve platform inceleme adimlari kayit sonrasi ayarlar ekranindan devam eder.',
+  },
+];
+
 export function AuthShell({
   title,
   subtitle,
@@ -18,43 +36,47 @@ export function AuthShell({
 }) {
   return (
     <div className="auth-wrapper">
-      <div className="auth-panel glass-card">
+      <div className="auth-panel">
         <aside className="auth-side">
-          <div className="eyebrow">{webEnv.appName}</div>
-          <h1 style={{ fontSize: '3rem', marginBottom: 12 }}>Araç al, sat, analiz et.</h1>
-          <p style={{ color: 'rgba(255,255,255,0.72)', maxWidth: 480, lineHeight: 1.7 }}>
-            Carloi web, mobil deneyimi büyütmez; masaüstü için yeniden kurgulanmış profesyonel bir
-            kontrol yüzeyi sunar. Akış, ilanlar, Loi AI ve mesajlar aynı hesapla senkron kalır.
-          </p>
-          <div style={{ marginTop: 32, display: 'grid', gap: 14 }}>
-            <div className="soft-card" style={{ padding: 18, background: 'rgba(255,255,255,0.08)', color: 'white' }}>
-              <strong>Aynı hesap</strong>
-              <div style={{ marginTop: 6, color: 'rgba(255,255,255,0.68)' }}>
-                Mobil ve web aynı feed, aynı mesajlar, aynı ilan mantığı ile çalışır.
-              </div>
+          <div className="auth-brand">
+            <Image src="/carloi.png" alt="Carloi" width={56} height={56} />
+            <div>
+              <div className="eyebrow">{webEnv.appName}</div>
+              <strong>Otomotiv sosyal platformu</strong>
             </div>
-            <div className="soft-card" style={{ padding: 18, background: 'rgba(255,255,255,0.08)', color: 'white' }}>
-              <strong>Loi AI</strong>
-              <div style={{ marginTop: 6, color: 'rgba(255,255,255,0.68)' }}>
-                Piyasa karşılaştırması, araç seçimi, kronik arızalar ve ilan yorumları tek panelde.
+          </div>
+
+          <div className="stack" style={{ gap: 16 }}>
+            <h1 className="auth-display-title">Arac ilanlari, feed ve mesajlasma ayni yerde.</h1>
+            <p className="auth-lead">
+              Carloi web, sosyal akisi ve arac ticareti deneyimini daha hizli, daha temiz ve daha
+              guvenli bir masaustu yuzeyine tasir.
+            </p>
+          </div>
+
+          <div className="stack">
+            {trustItems.map((item) => (
+              <div key={item.title} className="auth-trust-card">
+                <strong>{item.title}</strong>
+                <p>{item.detail}</p>
               </div>
-            </div>
+            ))}
           </div>
         </aside>
+
         <section className="auth-content">
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 24 }}>
-            <Image src="/carloi.png" alt="Carloi" width={42} height={42} />
-            <div>
-              <div className="eyebrow">Carloi Web</div>
-              <strong>{title}</strong>
-            </div>
+          <div className="stack">
+            <div className="eyebrow">Carloi hesabin</div>
+            <h2 style={{ margin: 0 }}>{title}</h2>
+            <p className="muted" style={{ margin: 0 }}>
+              {subtitle}
+            </p>
           </div>
-          <p className="muted" style={{ marginBottom: 24 }}>
-            {subtitle}
-          </p>
-          {children}
+
+          <div className="auth-form-card">{children}</div>
+
           {alternateHref && alternateLabel ? (
-            <div style={{ marginTop: 18 }}>
+            <div className="post-actions">
               <Link className="muted" href={alternateHref}>
                 {alternateLabel}
               </Link>
